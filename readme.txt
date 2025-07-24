@@ -8,4 +8,4 @@ source venv/bin/activate
 
 +94773519452
 
-telethon_message_collector.py
+python telethon_message_collector.py
