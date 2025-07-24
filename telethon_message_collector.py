@@ -119,4 +119,5 @@ async def handler(event):
         print(f"[Error] Failed to process message: {e}")
 
 client.start()
+print("Server is running...!")
 client.run_until_disconnected()
