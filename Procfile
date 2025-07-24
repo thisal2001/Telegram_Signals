@@ -1,1 +1,1 @@
-worker: python telethon_script.py
+worker: python telethon_message_collector.py
