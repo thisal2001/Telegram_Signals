@@ -1,20 +1,23 @@
 import os
-from telethon import TelegramClient, events
-import psycopg2
+import asyncio
+import json
 from dotenv import load_dotenv
 from urllib.parse import urlparse, parse_qs
+from telethon import TelegramClient, events
+import psycopg2
+import websockets
 
+# Load environment variables
 load_dotenv()
 
-# Telegram API credentials
+# Telegram credentials
 api_id = int(os.getenv("API_ID"))
 api_hash = os.getenv("API_HASH")
 group_id = int(os.getenv("GROUP_ID"))
 
-# Parse PostgreSQL URL
+# Database connection
 pg_url = urlparse(os.getenv("DATABASE_URL"))
-
-db=psycopg2.connect(
+db = psycopg2.connect(
     dbname=pg_url.path[1:],
     user=pg_url.username,
     password=pg_url.password,
@@ -24,11 +27,11 @@ db=psycopg2.connect(
 )
 cursor = db.cursor()
 
-# Create tables if they don't exist
+# Create tables
 cursor.execute("""
                CREATE TABLE IF NOT EXISTS signals (
-                   id SERIAL PRIMARY KEY,
-                   pair VARCHAR(50),
+                                                      id SERIAL PRIMARY KEY,
+                                                      pair VARCHAR(50),
                    setup_type VARCHAR(10),
                    entry VARCHAR(20),
                    leverage VARCHAR(10),
@@ -43,19 +46,25 @@ cursor.execute("""
 
 cursor.execute("""
                CREATE TABLE IF NOT EXISTS market_messages (
-                   id SERIAL PRIMARY KEY,
-                   sender VARCHAR(255),
+                                                              id SERIAL PRIMARY KEY,
+                                                              sender VARCHAR(255),
                    text TEXT,
                    date TIMESTAMP
                    )
                """)
-
-
 db.commit()
 
-client = TelegramClient('session', api_id, api_hash)
+# WebSocket connected clients
+connected_clients = set()
 
-# Helper function to extract value by label (e.g., "Entry:", "Leverage:")
+async def websocket_handler(websocket):
+    connected_clients.add(websocket)
+    try:
+        await websocket.wait_closed()
+    finally:
+        connected_clients.remove(websocket)
+
+# Helper to extract values
 def extract_value(label, lines):
     for line in lines:
         if label in line:
@@ -63,6 +72,9 @@ def extract_value(label, lines):
             if len(parts) > 1:
                 return parts[1].strip()
     return None
+
+# Telegram Client
+client = TelegramClient('session', api_id, api_hash)
 
 @client.on(events.NewMessage(chats=group_id))
 async def handler(event):
@@ -73,13 +85,9 @@ async def handler(event):
         date = event.message.date
 
         lines = text.splitlines()
-
-        # Determine if it's a signal message
         is_signal = (
-                '#' in text and
-                'Entry' in text and
-                'Take Profit' in text and
-                'Stop Loss' in text
+                '#' in text and 'Entry' in text and
+                'Take Profit' in text and 'Stop Loss' in text
         )
 
         if is_signal:
@@ -107,17 +115,52 @@ async def handler(event):
                            ))
             db.commit()
 
+            data = {
+                "type": "signal",
+                "pair": pair,
+                "setup_type": setup_type,
+                "entry": entry,
+                "leverage": leverage,
+                "tp1": tp1,
+                "tp2": tp2,
+                "tp3": tp3,
+                "tp4": tp4,
+                "timestamp": date.isoformat(),
+                "full_message": text
+            }
+
         else:
             print("[Market] Detected market message.")
-            cursor.execute(
-                "INSERT INTO market_messages (sender, text, date) VALUES (%s, %s, %s)",
-                (sender_name, text, date)
-            )
+            cursor.execute("""
+                           INSERT INTO market_messages (sender, text, date)
+                           VALUES (%s, %s, %s)
+                           """, (sender_name, text, date))
             db.commit()
+
+            data = {
+                "type": "market",
+                "sender": sender_name,
+                "text": text,
+                "timestamp": date.isoformat()
+            }
+
+        # Broadcast to frontend via WebSocket
+        if connected_clients:
+            message = json.dumps(data)
+            await asyncio.gather(*[client.send(message) for client in connected_clients])
 
     except Exception as e:
         print(f"[Error] Failed to process message: {e}")
 
-client.start()
-print("Server is running...!")
-client.run_until_disconnected()
+# Main
+async def main():
+    # Start WebSocket server
+    websocket_server = websockets.serve(websocket_handler, "localhost", 6789)
+    print("WebSocket server started on ws://localhost:6789")
+
+    await websocket_server
+    await client.start()
+    print("Telegram client started.")
+    await client.run_until_disconnected()
+
+asyncio.run(main())
