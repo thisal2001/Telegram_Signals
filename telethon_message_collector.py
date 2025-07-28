@@ -1,21 +1,21 @@
 import os
-import asyncio
 import json
-from dotenv import load_dotenv
-from urllib.parse import urlparse, parse_qs
+import asyncio
 from telethon import TelegramClient, events
 import psycopg2
+from dotenv import load_dotenv
+from urllib.parse import urlparse, parse_qs
 import websockets
 
 # Load environment variables
 load_dotenv()
 
-# Telegram credentials
+# Telegram API credentials
 api_id = int(os.getenv("API_ID"))
 api_hash = os.getenv("API_HASH")
 group_id = int(os.getenv("GROUP_ID"))
 
-# Database connection
+# Parse PostgreSQL URL
 pg_url = urlparse(os.getenv("DATABASE_URL"))
 db = psycopg2.connect(
     dbname=pg_url.path[1:],
@@ -27,7 +27,7 @@ db = psycopg2.connect(
 )
 cursor = db.cursor()
 
-# Create tables
+# Create tables if they don't exist
 cursor.execute("""
                CREATE TABLE IF NOT EXISTS signals (
                                                       id SERIAL PRIMARY KEY,
@@ -54,17 +54,21 @@ cursor.execute("""
                """)
 db.commit()
 
-# WebSocket connected clients
+# Initialize Telegram client
+client = TelegramClient('session', api_id, api_hash)
+
+# WebSocket clients
 connected_clients = set()
 
-async def websocket_handler(websocket):
+# WebSocket handler
+async def websocket_handler(websocket, path):
     connected_clients.add(websocket)
     try:
         await websocket.wait_closed()
     finally:
         connected_clients.remove(websocket)
 
-# Helper to extract values
+# Helper to extract value by label
 def extract_value(label, lines):
     for line in lines:
         if label in line:
@@ -73,21 +77,37 @@ def extract_value(label, lines):
                 return parts[1].strip()
     return None
 
-# Telegram Client
-client = TelegramClient('session', api_id, api_hash)
+# Broadcast message to WebSocket clients
+async def broadcast(message):
+    if connected_clients:
+        await asyncio.wait([ws.send(json.dumps(message)) for ws in connected_clients])
 
+# Telegram message handler
 @client.on(events.NewMessage(chats=group_id))
 async def handler(event):
     try:
         sender = await event.get_sender()
-        sender_name = sender.username or sender.first_name or 'Unknown'
+
+        # ✅ Handle user vs channel sender
+        if hasattr(sender, 'username') and sender.username:
+            sender_name = sender.username
+        elif hasattr(sender, 'first_name') and sender.first_name:
+            sender_name = sender.first_name
+        elif hasattr(sender, 'title'):  # Channel case
+            sender_name = sender.title
+        else:
+            sender_name = 'Unknown'
+
         text = event.message.message
         date = event.message.date
-
         lines = text.splitlines()
+
+        # Detect signal message
         is_signal = (
-                '#' in text and 'Entry' in text and
-                'Take Profit' in text and 'Stop Loss' in text
+                '#' in text and
+                'Entry' in text and
+                'Take Profit' in text and
+                'Stop Loss' in text
         )
 
         if is_signal:
@@ -104,18 +124,15 @@ async def handler(event):
             tp3 = extract_value("Target 3", lines)
             tp4 = extract_value("Target 4", lines)
 
+            # Save to DB
             cursor.execute("""
-                           INSERT INTO signals (
-                               pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4,
-                               timestamp, full_message
-                           ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                           """, (
-                               pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4,
-                               date, text
-                           ))
+                           INSERT INTO signals (pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, timestamp, full_message)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                           """, (pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, date, text))
             db.commit()
 
-            data = {
+            # Send via WebSocket
+            await broadcast({
                 "type": "signal",
                 "pair": pair,
                 "setup_type": setup_type,
@@ -125,42 +142,40 @@ async def handler(event):
                 "tp2": tp2,
                 "tp3": tp3,
                 "tp4": tp4,
-                "timestamp": date.isoformat(),
+                "timestamp": str(date),
                 "full_message": text
-            }
+            })
 
         else:
             print("[Market] Detected market message.")
-            cursor.execute("""
-                           INSERT INTO market_messages (sender, text, date)
-                           VALUES (%s, %s, %s)
-                           """, (sender_name, text, date))
+
+            cursor.execute(
+                "INSERT INTO market_messages (sender, text, date) VALUES (%s, %s, %s)",
+                (sender_name, text, date)
+            )
             db.commit()
 
-            data = {
+            await broadcast({
                 "type": "market",
                 "sender": sender_name,
                 "text": text,
-                "timestamp": date.isoformat()
-            }
-
-        # Broadcast to frontend via WebSocket
-        if connected_clients:
-            message = json.dumps(data)
-            await asyncio.gather(*[client.send(message) for client in connected_clients])
+                "timestamp": str(date)
+            })
 
     except Exception as e:
         print(f"[Error] Failed to process message: {e}")
 
-# Main
+# Main async runner
 async def main():
     # Start WebSocket server
-    websocket_server = websockets.serve(websocket_handler, "localhost", 6789)
+    ws_server = await websockets.serve(websocket_handler, "0.0.0.0", 6789)
     print("WebSocket server started on ws://localhost:6789")
 
-    await websocket_server
+    # Start Telegram client
     await client.start()
     print("Telegram client started.")
+
     await client.run_until_disconnected()
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
