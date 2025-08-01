@@ -6,6 +6,5 @@ python3 -m venv venv
 
 source venv/bin/activate
 
-+94773519452
 
 python telethon_message_collector.py
