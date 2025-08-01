@@ -52,6 +52,7 @@ cursor.execute("""
                    full_message TEXT
                    );
                """)
+print("✅ Checked/Created: signal_messages table")
 
 cursor.execute("""
                CREATE TABLE IF NOT EXISTS market_messages (
@@ -61,6 +62,7 @@ cursor.execute("""
                    timestamp TIMESTAMP
                    );
                """)
+print("✅ Checked/Created: market_messages table")
 db.commit()
 
 connected_clients = set()
