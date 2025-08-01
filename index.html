@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Telegram Live Messages</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f9f9f9;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+
+    #status {
+      text-align: center;
+      margin-bottom: 20px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .status-online {
+      color: green;
+    }
+
+    .status-offline {
+      color: red;
+    }
+
+    .message-container {
+      max-width: 800px;
+      margin: auto;
+      background: #fff;
+      border-radius: 10px;
+      padding: 15px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .type-signal {
+      border-left: 6px solid #28a745;
+    }
+
+    .type-market {
+      border-left: 6px solid #007bff;
+    }
+
+    .message-header {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .message-body {
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+<h1>📡 Live Telegram Messages</h1>
+<p id="status" class="status-offline">🔴 Disconnected</p>
+<div id="messages"></div>
+
+<script>
+  let ws;
+
+  function connectWebSocket() {
+    ws = new WebSocket("wss://telegramsignals-production.up.railway.app"); // ✅ Use wss:// for secure WebSocket
+
+    const statusEl = document.getElementById("status");
+    const messagesDiv = document.getElementById("messages");
+
+    ws.onopen = () => {
+      console.log("✅ WebSocket connected");
+      statusEl.textContent = "🟢 Connected (Python script running)";
+      statusEl.className = "status-online";
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      const container = document.createElement("div");
+      container.className = `message-container type-${data.type}`;
+
+      const header = document.createElement("div");
+      header.className = "message-header";
+
+      if (data.type === "signal") {
+        header.innerText = `📈 Signal - ${data.pair} (${data.setup_type})`;
+        container.innerHTML += `
+            <div class="message-body">
+              <strong>Entry:</strong> ${data.entry || "N/A"}<br>
+              <strong>Leverage:</strong> ${data.leverage || "N/A"}<br>
+              <strong>TP1:</strong> ${data.tp1 || "N/A"}<br>
+              <strong>TP2:</strong> ${data.tp2 || "N/A"}<br>
+              <strong>TP3:</strong> ${data.tp3 || "N/A"}<br>
+              <strong>TP4:</strong> ${data.tp4 || "N/A"}<br>
+              <strong>Timestamp:</strong> ${data.timestamp}<br>
+              <hr>
+              <pre>${data.full_message}</pre>
+            </div>
+          `;
+      } else {
+        header.innerText = `💬 Market Message from ${data.sender}`;
+        container.innerHTML += `
+            <div class="message-body">
+              ${data.text}<br>
+              <small>${data.timestamp}</small>
+            </div>
+          `;
+      }
+
+      container.prepend(header);
+      messagesDiv.prepend(container);
+    };
+
+    ws.onclose = () => {
+      console.log("❌ WebSocket disconnected");
+      statusEl.textContent = "🔴 Disconnected (Python script not running)";
+      statusEl.className = "status-offline";
+
+      // Auto-reconnect after 5 seconds
+      setTimeout(connectWebSocket, 5000);
+    };
+
+    ws.onerror = (err) => {
+      console.error("WebSocket error:", err);
+    };
+  }
+
+  connectWebSocket();
+</script>
+</body>
+</html>
