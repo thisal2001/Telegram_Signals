@@ -90,7 +90,7 @@ export default function Dashboard() {
 
   // WebSocket live updates
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:6789");
+    const ws = new WebSocket("wss://telegramsignals-production.up.railway.app");
     ws.onopen = () => setIsConnected(true);
     ws.onmessage = (event) => {
       try {
