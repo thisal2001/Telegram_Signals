@@ -1,3 +1,4 @@
+git push origin backend
 [build]
 root = "backend"
 git
