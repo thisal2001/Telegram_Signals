@@ -194,7 +194,7 @@ async def telegram_handler():
 async def main():
     create_tables()
     server = await websockets.serve(websocket_handler, "0.0.0.0", 6789)
-    print("🚀 WebSocket server started on ws://0.0.0.0:6789")
+    print("🚀 WebSocket server started on wss://telegramsignals-production.up.railway.app")
     await telegram_handler()
 
 if __name__ == "__main__":
