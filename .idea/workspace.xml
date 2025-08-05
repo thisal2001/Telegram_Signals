@@ -6,7 +6,6 @@
   <component name="ChangeListManager">
     <list default="true" id="f16459d9-cff0-4fd8-b9bf-f4b2c264f15f" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/telethon_message_collector.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/telethon_message_collector.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -31,6 +30,7 @@
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;frontend&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/thisal/Desktop/Telegram_Signals/frontend&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -40,6 +40,10 @@
   }
 }</component>
   <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/frontend" />
+      <recent name="$PROJECT_DIR$/backend" />
+    </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/backend" />
       <recent name="$PROJECT_DIR$" />
@@ -61,6 +65,10 @@
       <option name="presentableId" value="Default" />
       <updated>1754039751038</updated>
       <workItem from="1754039753993" duration="2387000" />
+      <workItem from="1754081130509" duration="2032000" />
+      <workItem from="1754147299439" duration="2242000" />
+      <workItem from="1754302681509" duration="1870000" />
+      <workItem from="1754360501363" duration="1309000" />
     </task>
     <servers />
   </component>
