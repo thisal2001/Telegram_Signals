@@ -84,6 +84,8 @@ export default function LoginPage() {
     setTimeout(() => {
       if (username === "admin" && password === "1234") {
         router.push("/dashboard"); // Redirect to dashboard on success
+      }else if(username==="Test_admin"&& password==="TE$t_admin"){
+        router.push("/dashboard");
       } else {
         setError("❌ Invalid credentials");
       }
