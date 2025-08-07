@@ -25,7 +25,7 @@ DB_PASS = url.password
 DB_HOST = url.hostname
 DB_PORT = url.port
 
-# ✅ Create DB connection (with SSL for Neon)
+# Database connection with auto-reconnect
 def connect_db():
     return psycopg2.connect(
         dbname=DB_NAME,
@@ -38,7 +38,6 @@ def connect_db():
 
 db = connect_db()
 
-# ✅ Auto-reconnect wrapper
 def get_db_connection():
     global db
     try:
@@ -49,7 +48,19 @@ def get_db_connection():
         db = connect_db()
     return db
 
-# ✅ Create tables if not exist (Updated with stop_loss)
+# Helper function for safe numeric conversion
+def to_float_safe(value):
+    """Convert string to float, handling emojis and special characters"""
+    if not value:
+        return None
+    try:
+        # Remove all non-numeric characters except . and -
+        cleaned = ''.join(c for c in value if c.isdigit() or c in ('.', '-'))
+        return float(cleaned) if cleaned else None
+    except ValueError:
+        return None
+
+# Table creation with numeric columns
 def create_tables():
     conn = get_db_connection()
     with conn.cursor() as cursor:
@@ -58,18 +69,18 @@ def create_tables():
                                                                       id SERIAL PRIMARY KEY,
                                                                       pair VARCHAR(50),
                            setup_type VARCHAR(10),
-                           entry VARCHAR(50),
-                           leverage VARCHAR(50),
-                           tp1 VARCHAR(50),
-                           tp2 VARCHAR(50),
-                           tp3 VARCHAR(50),
-                           tp4 VARCHAR(50),
-                           stop_loss VARCHAR(50),  -- New column
+                           entry DECIMAL(18,8),
+                           leverage INTEGER,
+                           tp1 DECIMAL(18,8),
+                           tp2 DECIMAL(18,8),
+                           tp3 DECIMAL(18,8),
+                           tp4 DECIMAL(18,8),
+                           stop_loss DECIMAL(18,8),
                            timestamp TIMESTAMP,
                            full_message TEXT
                            );
                        """)
-        print("✅ Checked/Created: signal_messages table (with stop_loss)")
+        print("✅ Checked/Created: signal_messages table")
 
         cursor.execute("""
                        CREATE TABLE IF NOT EXISTS market_messages (
@@ -82,17 +93,15 @@ def create_tables():
         print("✅ Checked/Created: market_messages table")
         conn.commit()
 
-# ✅ WebSocket handling
+# WebSocket handling
 connected_clients = set()
 
 async def websocket_handler(websocket):
     print("✅ WebSocket client connected")
     connected_clients.add(websocket)
     try:
-        async for _ in websocket:  # Keep alive
+        async for _ in websocket:
             pass
-    except websockets.exceptions.ConnectionClosed:
-        pass
     finally:
         connected_clients.remove(websocket)
         print("❌ WebSocket client disconnected")
@@ -105,16 +114,20 @@ async def send_to_clients(data):
             return_exceptions=True
         )
 
-# ✅ Helper: extract value from message lines (improved)
+# Improved value extractor with emoji handling
 def extract_value(label, lines):
     for line in lines:
-        if label.lower() in line.lower():  # Case insensitive
+        if label.lower() in line.lower():
             parts = line.split(":")
             if len(parts) > 1:
-                return parts[1].strip().replace("•", "").strip()
+                value = parts[1].strip().replace("•", "").strip()
+                # Special handling for stop loss (remove ☠️)
+                if "stop loss" in label.lower() or "sl" in label.lower():
+                    value = value.split('☠️')[0].strip()
+                return value
     return None
 
-# ✅ Save functions (updated with stop_loss)
+# Save function with robust numeric conversion
 def save_signal(pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, stop_loss, timestamp, full_message):
     conn = get_db_connection()
     try:
@@ -126,13 +139,21 @@ def save_signal(pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, stop_loss
                                timestamp, full_message
                            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                            """, (
-                               pair, setup_type, entry, leverage,
-                               tp1, tp2, tp3, tp4, stop_loss,
-                               timestamp, full_message
+                               pair, setup_type,
+                               to_float_safe(entry),
+                               int(to_float_safe(leverage.replace('x', ''))) if leverage else None,
+                               to_float_safe(tp1),
+                               to_float_safe(tp2),
+                               to_float_safe(tp3),
+                               to_float_safe(tp4),
+                               to_float_safe(stop_loss),
+                               timestamp,
+                               full_message
                            ))
             conn.commit()
     except Exception as e:
-        print(f"⚠️ Failed to save signal: {e}")
+        print(f"⚠️ Failed to save signal: {e}\nProblem values: "
+              f"entry={entry}, leverage={leverage}, stop_loss={stop_loss}")
         conn.rollback()
 
 def save_market(sender, text, timestamp):
@@ -148,7 +169,7 @@ def save_market(sender, text, timestamp):
         print(f"⚠️ Failed to save market message: {e}")
         conn.rollback()
 
-# ✅ Telegram listener (updated with stop_loss)
+# Telegram listener with improved error handling
 async def telegram_handler():
     client = TelegramClient('session', API_ID, API_HASH)
     await client.start()
@@ -161,7 +182,6 @@ async def telegram_handler():
             date = event.message.date
             lines = [line.strip() for line in text.splitlines() if line.strip()]
 
-            # Detect signal message (improved check)
             is_signal = (
                     any(line.startswith('#') for line in lines) and
                     any('entry' in line.lower() for line in lines) and
@@ -195,7 +215,7 @@ async def telegram_handler():
                     "type": "signal",
                     "pair": pair,
                     "setup_type": setup_type,
-                    "entry": entry,
+                    "entry": entry,  # Original text for compatibility
                     "leverage": leverage,
                     "tp1": tp1,
                     "tp2": tp2,
@@ -221,22 +241,9 @@ async def telegram_handler():
 
     await client.run_until_disconnected()
 
-# ✅ Main
+# Main function
 async def main():
     create_tables()
-
-    # Add stop_loss column if not exists (for existing databases)
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                           ALTER TABLE signal_messages
-                               ADD COLUMN IF NOT EXISTS stop_loss VARCHAR(50)
-                           """)
-            conn.commit()
-            print("✅ Ensured stop_loss column exists")
-    except Exception as e:
-        print(f"⚠️ Could not add stop_loss column: {e}")
 
     server = await websockets.serve(
         websocket_handler,
