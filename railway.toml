@@ -1,2 +1,3 @@
 [build]
-root = "backend"
+builder = "nixpacks"  # or "docker" if you prefer
+root = "backend"      # Tells Railway to only use the backend folder
