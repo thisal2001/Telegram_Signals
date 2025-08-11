@@ -249,8 +249,7 @@ async def main():
         websocket_handler,
         "0.0.0.0",
         6789,
-        ping_interval=20,
-        ping_timeout=60
+        
     )
     print("🚀 WebSocket server started on wss://telegramsignals-production.up.railway.app")
 
