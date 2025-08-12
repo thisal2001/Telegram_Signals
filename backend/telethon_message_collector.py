@@ -100,11 +100,11 @@ async def websocket_handler(websocket):
     print("✅ WebSocket client connected")
     connected_clients.add(websocket)
     try:
-        async for _ in websocket:
-            pass
+        await websocket.wait_closed()  # Just wait until the client disconnects
     finally:
         connected_clients.remove(websocket)
         print("❌ WebSocket client disconnected")
+
 
 async def send_to_clients(data):
     if connected_clients:
