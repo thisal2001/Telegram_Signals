@@ -7,6 +7,8 @@ app = FastAPI()
 # Import your two main functions
 import telethon_message_collector
 from fetch_past_messages import fetch_past_messages
+from fastapi import FastAPI, WebSocket
+
 
 
 app.add_middleware(
