@@ -105,7 +105,6 @@ async def websocket_handler(websocket):
         connected_clients.remove(websocket)
         print("❌ WebSocket client disconnected")
 
-
 async def send_to_clients(data):
     if connected_clients:
         message = json.dumps(data, default=str)
@@ -249,7 +248,7 @@ async def main():
         websocket_handler,
         "0.0.0.0",
         6789,
-        
+
     )
     print("🚀 WebSocket server started on wss://telegramsignals-production.up.railway.app")
 
