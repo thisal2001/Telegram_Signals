@@ -28,17 +28,7 @@ async def startup_event():
 @app.get("/fetch-past")
 async def fetch_past_endpoint():
     await fetch_past_messages()  # ✅ must be awaited
-    return messages
+    return {"status": "success", "message": "Fetched past messages"}
 
-# Separate WebSocket route
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    print("WebSocket client connected")
-    try:
-        while True:
-            data = await websocket.receive_text()
-            await websocket.send_text(f"Echo: {data}")
-    except Exception as e:
-        print("WebSocket disconnected:", e)
+
 
