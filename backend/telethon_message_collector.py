@@ -100,7 +100,8 @@ async def websocket_handler(websocket):
     print("✅ WebSocket client connected")
     connected_clients.add(websocket)
     try:
-        await websocket.wait_closed()  # Just wait until the client disconnects
+        async for _ in websocket:
+            pass
     finally:
         connected_clients.remove(websocket)
         print("❌ WebSocket client disconnected")
@@ -248,7 +249,8 @@ async def main():
         websocket_handler,
         "0.0.0.0",
         6789,
-
+        ping_interval=20,
+        ping_timeout=60
     )
     print("🚀 WebSocket server started on wss://telegramsignals-production.up.railway.app")
 
