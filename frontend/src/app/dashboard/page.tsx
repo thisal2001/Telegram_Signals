@@ -14,6 +14,7 @@ import {
   Target,
   Zap,
   LogOut,
+  RefreshCw,
 } from "lucide-react";
 
 interface Message {
@@ -27,127 +28,137 @@ interface Message {
   tp3?: string;
   tp4?: string;
   stop_loss?: string;
-  timestamp?: string; // ISO string
+  timestamp?: string;
   full_message?: string;
   sender?: string;
   text?: string;
 }
 
 type MessageType = "all" | "signal" | "market";
-type TradeType = "all" | string; // e.g. "long", "short"
-type TimeRange = "all" | number; // minutes
+type TradeType = "all" | string;
+type TimeRange = "all" | number;
 
 export default function Dashboard() {
   const router = useRouter();
-
   const [messages, setMessages] = useState<Message[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-
-  const [filters, setFilters] = useState<{
-    messageType: MessageType;
-    pair: string | "all";
-    tradeType: TradeType;
-    timeRange: TimeRange;
-  }>({
-    messageType: "all",
-    pair: "all",
-    tradeType: "all",
-    timeRange: "all",
+  const [isFetching, setIsFetching] = useState(false);
+  const [toast, setToast] = useState({
+    visible: false,
+    message: "",
+    type: "success" as "success" | "error",
   });
 
-  // Logout handler
-  function handleLogout() {
-    // Clear auth tokens or session storage here if needed
-    // localStorage.removeItem("authToken");
-    // sessionStorage.clear();
+  const [filters, setFilters] = useState({
+    messageType: "all" as MessageType,
+    pair: "all",
+    tradeType: "all" as TradeType,
+    timeRange: "all" as TimeRange,
+  });
 
-    // Redirect to login page
-    router.push("/login"); // Change this to your login route
-  }
+  // Handle logout
+  const handleLogout = () => {
+    router.push("/login");
+  };
 
-  // Fetch historical messages with error handling
+  // Fetch initial messages
   useEffect(() => {
-    async function fetchMessages() {
+    const fetchMessages = async () => {
       try {
         const res = await fetch("/api/messages");
         const data = await res.json();
         if (Array.isArray(data)) {
           setMessages(data);
-        } else if (data.error) {
-          console.error("API error:", data.error);
-          setMessages([]);
-        } else {
-          console.error("Unexpected API response:", data);
-          setMessages([]);
         }
       } catch (err) {
         console.error("Fetch error:", err);
-        setMessages([]);
       }
-    }
+    };
     fetchMessages();
   }, []);
 
-  // WebSocket live updates
+  // WebSocket connection
   useEffect(() => {
     const ws = new WebSocket("wss://telegramsignals-production.up.railway.app");
+
     ws.onopen = () => setIsConnected(true);
     ws.onmessage = (event) => {
       try {
-        const rawData = JSON.parse(event.data);
-        console.log("Raw WebSocket message:", rawData); // Debug log
-
-        // Ensure the message has the correct structure
+        const data = JSON.parse(event.data);
         const newMsg: Message = {
-          message_type: rawData.message_type || rawData.type || "market",
-          pair: rawData.pair,
-          setup_type: rawData.setup_type || rawData.setupType,
-          entry: rawData.entry,
-          leverage: rawData.leverage,
-          tp1: rawData.tp1,
-          tp2: rawData.tp2,
-          tp3: rawData.tp3,
-          tp4: rawData.tp4,
-          stop_loss: rawData.stop_loss,
-          timestamp: rawData.timestamp || new Date().toISOString(),
-          full_message: rawData.full_message || rawData.fullMessage || rawData.message,
-          sender: rawData.sender || rawData.from,
-          text: rawData.text || rawData.content || rawData.message,
+          message_type: data.type || "market",
+          ...data,
         };
-
-        console.log("Processed WebSocket message:", newMsg); // Debug log
         setMessages((prev) => [newMsg, ...prev]);
       } catch (error) {
-        console.error("Error processing WebSocket message:", error, event.data);
+        console.error("WebSocket error:", error);
       }
     };
     ws.onclose = () => setIsConnected(false);
+
     return () => ws.close();
   }, []);
 
-  // Unique pairs for filter dropdown
-  const uniquePairs = Array.from(new Set(messages.map((m) => m.pair).filter(Boolean))) as string[];
+  const handleFetchPastMessages = async () => {
+    try {
+      setIsFetching(true); // Optional: if you track loading state
 
-  // Filter messages (lowercase comparison)
-  const filteredMessages = Array.isArray(messages)
-      ? messages.filter((msg) => {
-        const msgType = msg.message_type?.toLowerCase() ?? "";
-        const setupType = msg.setup_type?.toLowerCase() ?? "";
-        const pair = msg.pair ?? "";
+      // 1. Trigger fetch & save on backend
+      const response = await fetch("https://telegramsignals-production.up.railway.app/fetch-past", {
+        method: "GET",
+      });
 
-        if (filters.messageType !== "all" && msgType !== filters.messageType) return false;
-        if (filters.pair !== "all" && pair !== filters.pair) return false;
-        if (filters.tradeType !== "all" && msgType === "signal" && setupType !== filters.tradeType) return false;
-        if (filters.timeRange !== "all" && msg.timestamp) {
-          const msgTime = new Date(msg.timestamp).getTime();
-          const now = Date.now();
-          if (msgTime < now - filters.timeRange * 60 * 1000) return false;
-        }
-        return true;
-      })
-      : [];
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Fetch past messages failed:", response.status, errorText);
+        throw new Error(`Fetch failed: ${response.status} ${errorText}`);
+      }
 
+      showToast("Messages fetched successfully!", "success");
+
+      // Reload page after successful fetch
+      window.location.reload();
+    } catch (error) {
+      showToast("Failed to fetch messages", "error");
+      console.error("Fetch error:", error);
+    } finally {
+      setIsFetching(false); // Optional: if you track loading state
+    }
+  };
+
+
+
+  // Show toast notification
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ visible: true, message, type });
+    setTimeout(() => {
+      setToast((prev) => ({ ...prev, visible: false }));
+    }, 3000);
+  };
+
+  // Filter messages
+  const uniquePairs = Array.from(
+      new Set(messages.map((m) => m.pair).filter(Boolean))
+  ) as string[];
+
+  const filteredMessages = messages.filter((msg) => {
+    const msgType = msg.message_type?.toLowerCase() ?? "";
+    const setupType = msg.setup_type?.toLowerCase() ?? "";
+    const pair = msg.pair ?? "";
+
+    if (filters.messageType !== "all" && msgType !== filters.messageType) return false;
+    if (filters.pair !== "all" && pair !== filters.pair) return false;
+    if (filters.tradeType !== "all" && msgType === "signal" && setupType !== filters.tradeType) return false;
+    if (filters.timeRange !== "all" && msg.timestamp) {
+      const msgTime = new Date(msg.timestamp).getTime();
+      const now = Date.now();
+      if (msgTime < now - (filters.timeRange as number) * 60 * 1000) return false;
+    }
+    return true;
+  });
+
+  // Format time helpers
   const formatTime = (timestamp?: string) => {
     if (!timestamp) return "";
     return new Date(timestamp).toLocaleTimeString("en-US", {
@@ -175,7 +186,7 @@ export default function Dashboard() {
         <header className="backdrop-blur-xl bg-white/5 border-b border-white/10 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
             <div className="flex items-center justify-between">
-              {/* Left side: title etc */}
+              {/* Left side */}
               <div className="flex items-center space-x-2 sm:space-x-4">
                 <div className="flex items-center space-x-2 sm:space-x-3">
                   <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
@@ -190,12 +201,13 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Right side: status, filters, logout */}
+              {/* Right side */}
               <div className="flex items-center space-x-2 sm:space-x-4">
                 <div
-                    className={`flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium ${isConnected
-                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                        : "bg-red-500/20 text-red-400 border border-red-500/30"
+                    className={`flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium ${
+                        isConnected
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                            : "bg-red-500/20 text-red-400 border border-red-500/30"
                     }`}
                 >
                   {isConnected ? <Wifi className="w-3 h-3 sm:w-4 sm:h-4" /> : <WifiOff className="w-3 h-3 sm:w-4 sm:h-4" />}
@@ -204,27 +216,48 @@ export default function Dashboard() {
 
                 <button
                     onClick={() => setShowFilters(!showFilters)}
-                    className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all duration-200 text-white border border-white/20 touch-target"
+                    className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all duration-200 text-white border border-white/20"
                 >
                   <Filter className="w-4 h-4" />
                   <span className="hidden sm:inline">Filters</span>
                 </button>
 
-                {/* Logout button */}
+                {/* Modern Fetch Button */}
+                <button
+                    onClick={handleFetchPastMessages}
+                    disabled={isFetching}
+                    className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl transition-all duration-300 ${
+                        isFetching
+                            ? "bg-purple-600/50 border border-purple-500/50 cursor-not-allowed"
+                            : "bg-purple-600 hover:bg-purple-700 border border-purple-500 hover:border-purple-400"
+                    }`}
+                >
+                  {isFetching ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <span>Fetching...</span>
+                      </>
+                  ) : (
+                      <>
+                        <RefreshCw className="w-5 h-5" />
+                        <span>Fetch Past</span>
+                      </>
+                  )}
+                </button>
+
                 <button
                     onClick={handleLogout}
-                    className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 bg-purple-700 hover:bg-purple-800 rounded-xl transition-colors duration-200 text-white border border-purple-800 touch-target"
-                    title="Logout"
+                    className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 bg-purple-700 hover:bg-purple-800 rounded-xl transition-colors duration-200 text-white border border-purple-800"
                 >
                   <LogOut className="w-4 h-4" />
                   <span className="hidden sm:inline">Logout</span>
                 </button>
-
               </div>
             </div>
           </div>
         </header>
 
+        {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           {/* Filters Panel */}
           {showFilters && (
@@ -238,9 +271,9 @@ export default function Dashboard() {
                         onChange={(e) => setFilters((f) => ({ ...f, messageType: e.target.value as MessageType }))}
                         className="w-full p-3 bg-slate-800 rounded-xl border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-base"
                     >
-                      <option value="all" className="bg-slate-800 text-white">All</option>
-                      <option value="signal" className="bg-slate-800 text-white">Signal</option>
-                      <option value="market" className="bg-slate-800 text-white">Market</option>
+                      <option value="all">All</option>
+                      <option value="signal">Signal</option>
+                      <option value="market">Market</option>
                     </select>
                   </div>
 
@@ -252,9 +285,11 @@ export default function Dashboard() {
                         onChange={(e) => setFilters((f) => ({ ...f, pair: e.target.value }))}
                         className="w-full p-3 bg-slate-800 rounded-xl border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-base"
                     >
-                      <option value="all" className="bg-slate-800 text-white">All</option>
+                      <option value="all">All</option>
                       {uniquePairs.map((p) => (
-                          <option key={p} value={p} className="bg-slate-800 text-white">{p}</option>
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
                       ))}
                     </select>
                   </div>
@@ -267,9 +302,9 @@ export default function Dashboard() {
                         onChange={(e) => setFilters((f) => ({ ...f, tradeType: e.target.value }))}
                         className="w-full p-3 bg-slate-800 rounded-xl border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-base"
                     >
-                      <option value="all" className="bg-slate-800 text-white">All</option>
-                      <option value="long" className="bg-slate-800 text-white">Long</option>
-                      <option value="short" className="bg-slate-800 text-white">Short</option>
+                      <option value="all">All</option>
+                      <option value="long">Long</option>
+                      <option value="short">Short</option>
                     </select>
                   </div>
 
@@ -286,11 +321,11 @@ export default function Dashboard() {
                         }
                         className="w-full p-3 bg-slate-800 rounded-xl border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-base"
                     >
-                      <option value="all" className="bg-slate-800 text-white">All</option>
-                      <option value="10" className="bg-slate-800 text-white">Last 10 minutes</option>
-                      <option value="30" className="bg-slate-800 text-white">Last 30 minutes</option>
-                      <option value="60" className="bg-slate-800 text-white">Last 1 hour</option>
-                      <option value="240" className="bg-slate-800 text-white">Last 4 hours</option>
+                      <option value="all">All</option>
+                      <option value="10">Last 10 minutes</option>
+                      <option value="30">Last 30 minutes</option>
+                      <option value="60">Last 1 hour</option>
+                      <option value="240">Last 4 hours</option>
                     </select>
                   </div>
                 </div>
@@ -456,7 +491,18 @@ export default function Dashboard() {
             })}
           </div>
         </div>
+
+
+        {/* Toast */}
+        {toast.visible && (
+            <div
+                className={`fixed bottom-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg font-semibold text-white text-sm sm:text-base ${
+                    toast.type === "success" ? "bg-emerald-600" : "bg-red-600"
+                } animate-in slide-in-from-bottom duration-300`}
+            >
+              {toast.message}
+            </div>
+        )}
       </div>
   );
 }
-
