@@ -13,7 +13,7 @@ from fastapi import FastAPI, WebSocket
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://telegram-signals-lac.vercel.app"],  # exact frontend domain
+    allow_origins=["*"],  # exact frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
