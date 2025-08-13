@@ -105,31 +105,37 @@ export default function Dashboard() {
       setIsFetching(true); // Optional: if you track loading state
 
       // 1. Trigger fetch & save on backend
-      const response = await fetch("https://telegramsignals-production.up.railway.app/fetch-past", {
-        method: "GET",
-      });
+      const handleFetchPastMessages = async () => {
+        try {
+          setIsFetching(true);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Fetch past messages failed:", response.status, errorText);
-        throw new Error(`Fetch failed: ${response.status} ${errorText}`);
-      }
+          const response = await fetch("https://telegramsignals-production.up.railway.app/fetch-past", {
+            method: "GET",
+          });
 
-      showToast("Messages fetched successfully!", "success");
+          if (!response.ok) {
+            const errorText = await response.text(); // get exact response body
+            console.error("Fetch past messages failed:", response.status, errorText);
+            throw new Error(`Fetch failed: ${response.status} ${errorText}`);
+          }
 
-      // Reload page after successful fetch
-      window.location.reload();
-    } catch (error) {
-      showToast("Failed to fetch messages", "error");
-      console.error("Fetch error:", error);
-    } finally {
-      setIsFetching(false); // Optional: if you track loading state
-    }
-  };
+          const data = await response.json();
+          console.log("Fetch response:", data); // ✅ log successful response
+
+          showToast("Messages fetched successfully!", "success");
+          window.location.reload();
+        } catch (error) {
+          console.error("Fetch error:", error); // ✅ log full error
+          showToast(`Failed to fetch messages: ${error}`, "error");
+        } finally {
+          setIsFetching(false);
+        }
+      };
 
 
 
-  // Show toast notification
+
+      // Show toast notification
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ visible: true, message, type });
     setTimeout(() => {
