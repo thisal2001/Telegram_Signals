@@ -80,7 +80,7 @@ export default function Dashboard() {
 
   // WebSocket connection
   useEffect(() => {
-    const ws = new WebSocket("wss://telegramsignals-production.up.railway.app");
+    const ws = new WebSocket("wss://telegramsignals-production.up.railway.app/ws");
 
     ws.onopen = () => setIsConnected(true);
     ws.onmessage = (event) => {
