@@ -131,17 +131,6 @@ export default function Dashboard() {
     }
   }; // Added missing closing brace for the function
 
-  // Show toast notification
-  const showToast = (message: string, type: "success" | "error") => {
-    setToast({ visible: true, message, type });
-    setTimeout(() => {
-      setToast((prev) => ({ ...prev, visible: false }));
-    }, 3000);
-  };
-
-
-
-
       // Show toast notification
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ visible: true, message, type });
