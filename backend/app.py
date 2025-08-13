@@ -28,7 +28,7 @@ async def startup_event():
 @app.get("/fetch-past")
 async def fetch_past_endpoint():
     await fetch_past_messages()  # ✅ must be awaited
-    return {"status": "success", "message": "Fetched past messages"}
+    return messages
 
 # Separate WebSocket route
 @app.websocket("/ws")
