@@ -115,23 +115,24 @@ export default function Dashboard() {
         throw new Error(`Fetch failed: ${response.status} ${errorText}`);
       }
 
-      const data = await response.json();
-      console.log("Fetch response:", data);
+      await response.json();
+      showToast("Messages fetched successfully! Refreshing...", "success");
 
-      if (Array.isArray(data)) {
-        setMessages((prev) => [...data, ...prev]);
-      }
+      // Wait briefly so toast shows, then refresh
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
 
-      showToast("Messages fetched successfully!", "success");
     } catch (error) {
       console.error("Fetch error:", error);
       showToast("Failed to fetch messages", "error");
     } finally {
       setIsFetching(false);
     }
-  }; // Added missing closing brace for the function
+  };
 
-      // Show toast notification
+
+  // Show toast notification
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ visible: true, message, type });
     setTimeout(() => {
