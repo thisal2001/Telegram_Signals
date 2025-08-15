@@ -80,7 +80,7 @@ export default function Dashboard() {
 
   // WebSocket connection
   useEffect(() => {
-    const ws = new WebSocket("wss://telegramsignals-production.up.railway.app/ws");
+    const ws = new WebSocket("wss://telegramsignals-production.up.railway.app");
 
     ws.onopen = () => setIsConnected(true);
     ws.onmessage = (event) => {
@@ -105,7 +105,7 @@ export default function Dashboard() {
       setIsFetching(true);
 
       const response = await fetch(
-          "https://telegramsignals-production.up.railway.app/fetch-past",
+          "http://localhost:8000/fetch-past",
           { method: "GET" }
       );
 
