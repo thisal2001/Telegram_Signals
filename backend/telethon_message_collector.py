@@ -1,11 +1,20 @@
 import os
 import asyncio
 import json
-from telethon import TelegramClient, events
+import logging
 import websockets
-import psycopg2
+from websockets.exceptions import ConnectionClosed
+from telethon import TelegramClient, events
 from urllib.parse import urlparse
 from dotenv import load_dotenv
+from psycopg2.pool import SimpleConnectionPool
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -15,165 +24,166 @@ API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 GROUP_ID = int(os.getenv("GROUP_ID"))
 
-# Parse DATABASE_URL
+# Database connection pool
 db_url = os.getenv("DATABASE_URL")
 url = urlparse(db_url)
-
-DB_NAME = url.path[1:]  # remove leading /
-DB_USER = url.username
-DB_PASS = url.password
-DB_HOST = url.hostname
-DB_PORT = url.port
-
-# Database connection with auto-reconnect
-def connect_db():
-    return psycopg2.connect(
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASS,
-        host=DB_HOST,
-        port=DB_PORT,
-        sslmode="require"
-    )
-
-db = connect_db()
-
-def get_db_connection():
-    global db
-    try:
-        with db.cursor() as cur:
-            cur.execute("SELECT 1;")
-    except Exception as e:
-        print(f"🔄 Reconnecting to DB... Error: {e}")
-        db = connect_db()
-    return db
+db_config = {
+    'dbname': url.path[1:],  # Remove leading /
+    'user': url.username,
+    'password': url.password,
+    'host': url.hostname,
+    'port': url.port,
+    'sslmode': 'require'
+}
+db_pool = SimpleConnectionPool(1, 20, **db_config)
 
 # Helper function for safe numeric conversion
 def to_float_safe(value):
-    """Convert string to float, handling emojis and special characters"""
     if not value:
         return None
     try:
-        # Remove all non-numeric characters except . and -
         cleaned = ''.join(c for c in value if c.isdigit() or c in ('.', '-'))
         return float(cleaned) if cleaned else None
     except ValueError:
         return None
 
-# Table creation with numeric columns
+# Table creation
 def create_tables():
-    conn = get_db_connection()
-    with conn.cursor() as cursor:
-        cursor.execute("""
-                       CREATE TABLE IF NOT EXISTS signal_messages (
-                                                                      id SERIAL PRIMARY KEY,
-                                                                      pair VARCHAR(50),
-                           setup_type VARCHAR(10),
-                           entry DECIMAL(18,8),
-                           leverage INTEGER,
-                           tp1 DECIMAL(18,8),
-                           tp2 DECIMAL(18,8),
-                           tp3 DECIMAL(18,8),
-                           tp4 DECIMAL(18,8),
-                           stop_loss DECIMAL(18,8),
-                           timestamp TIMESTAMP,
-                           full_message TEXT
-                           );
-                       """)
-        print("✅ Checked/Created: signal_messages table")
+    conn = db_pool.getconn()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS signal_messages (
+                    id SERIAL PRIMARY KEY,
+                    pair VARCHAR(50),
+                    setup_type VARCHAR(10),
+                    entry DECIMAL(18,8),
+                    leverage INTEGER,
+                    tp1 DECIMAL(18,8),
+                    tp2 DECIMAL(18,8),
+                    tp3 DECIMAL(18,8),
+                    tp4 DECIMAL(18,8),
+                    stop_loss DECIMAL(18,8),
+                    timestamp TIMESTAMP,
+                    full_message TEXT
+                );
+            """)
+            logger.info("Checked/Created: signal_messages table")
 
-        cursor.execute("""
-                       CREATE TABLE IF NOT EXISTS market_messages (
-                                                                      id SERIAL PRIMARY KEY,
-                                                                      sender VARCHAR(50),
-                           text TEXT,
-                           timestamp TIMESTAMP
-                           );
-                       """)
-        print("✅ Checked/Created: market_messages table")
-        conn.commit()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS market_messages (
+                    id SERIAL PRIMARY KEY,
+                    sender VARCHAR(50),
+                    text TEXT,
+                    timestamp TIMESTAMP
+                );
+            """)
+            logger.info("Checked/Created: market_messages table")
+            conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to create tables: {e}")
+        conn.rollback()
+    finally:
+        db_pool.putconn(conn)
 
 # WebSocket handling
 connected_clients = set()
+MAX_CONNECTIONS = 100
 
 async def websocket_handler(websocket):
-    print("✅ WebSocket client connected")
+    if len(connected_clients) >= MAX_CONNECTIONS:
+        logger.warning("Max connections reached, rejecting new connection")
+        await websocket.close(code=1008, reason="Max connections reached")
+        return
+    logger.info("WebSocket client connected")
     connected_clients.add(websocket)
     try:
-        async for _ in websocket:
-            pass
+        async for message in websocket:
+            logger.debug(f"Received message: {message}")
+    except ConnectionClosed as e:
+        logger.warning(f"WebSocket connection closed: {e}")
+    except asyncio.exceptions.IncompleteReadError as e:
+        logger.warning(f"Incomplete read error: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error in WebSocket handler: {e}")
     finally:
         connected_clients.remove(websocket)
-        print("❌ WebSocket client disconnected")
+        logger.info("WebSocket client disconnected")
 
 async def send_to_clients(data):
     if connected_clients:
         message = json.dumps(data, default=str)
-        await asyncio.gather(
-            *[client.send(message) for client in connected_clients],
-            return_exceptions=True
-        )
+        tasks = [client.send(message) for client in connected_clients]
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-# Improved value extractor with emoji handling
+# Improved value extractor
 def extract_value(label, lines):
     for line in lines:
         if label.lower() in line.lower():
             parts = line.split(":")
             if len(parts) > 1:
                 value = parts[1].strip().replace("•", "").strip()
-                # Special handling for stop loss (remove ☠️)
                 if "stop loss" in label.lower() or "sl" in label.lower():
                     value = value.split('☠️')[0].strip()
                 return value
     return None
 
-# Save function with robust numeric conversion
+# Save functions
 def save_signal(pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, stop_loss, timestamp, full_message):
-    conn = get_db_connection()
+    conn = db_pool.getconn()
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
-                           INSERT INTO signal_messages (
-                               pair, setup_type, entry, leverage,
-                               tp1, tp2, tp3, tp4, stop_loss,
-                               timestamp, full_message
-                           ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                           """, (
-                               pair, setup_type,
-                               to_float_safe(entry),
-                               int(to_float_safe(leverage.replace('x', ''))) if leverage else None,
-                               to_float_safe(tp1),
-                               to_float_safe(tp2),
-                               to_float_safe(tp3),
-                               to_float_safe(tp4),
-                               to_float_safe(stop_loss),
-                               timestamp,
-                               full_message
-                           ))
+                INSERT INTO signal_messages (
+                    pair, setup_type, entry, leverage,
+                    tp1, tp2, tp3, tp4, stop_loss,
+                    timestamp, full_message
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (
+                pair, setup_type,
+                to_float_safe(entry),
+                int(to_float_safe(leverage.replace('x', ''))) if leverage else None,
+                to_float_safe(tp1),
+                to_float_safe(tp2),
+                to_float_safe(tp3),
+                to_float_safe(tp4),
+                to_float_safe(stop_loss),
+                timestamp,
+                full_message
+            ))
             conn.commit()
+            logger.info(f"Saved signal for pair: {pair}")
     except Exception as e:
-        print(f"⚠️ Failed to save signal: {e}\nProblem values: "
-              f"entry={entry}, leverage={leverage}, stop_loss={stop_loss}")
+        logger.error(f"Failed to save signal: {e}, pair={pair}, entry={entry}, leverage={leverage}")
         conn.rollback()
+    finally:
+        db_pool.putconn(conn)
 
 def save_market(sender, text, timestamp):
-    conn = get_db_connection()
+    conn = db_pool.getconn()
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
-                           INSERT INTO market_messages (sender, text, timestamp)
-                           VALUES (%s,%s,%s)
-                           """, (sender, text, timestamp))
+                INSERT INTO market_messages (sender, text, timestamp)
+                VALUES (%s,%s,%s)
+            """, (sender, text, timestamp))
             conn.commit()
+            logger.info("Saved market message")
     except Exception as e:
-        print(f"⚠️ Failed to save market message: {e}")
+        logger.error(f"Failed to save market message: {e}")
         conn.rollback()
+    finally:
+        db_pool.putconn(conn)
 
-# Telegram listener with improved error handling
+# Telegram listener
 async def telegram_handler():
     client = TelegramClient('session', API_ID, API_HASH)
-    await client.start()
-    print("✅ Telegram client started.")
+    try:
+        await client.start()
+        logger.info("Telegram client started")
+    except Exception as e:
+        logger.error(f"Failed to start Telegram client: {e}")
+        return
 
     @client.on(events.NewMessage(chats=GROUP_ID))
     async def handler(event):
@@ -183,19 +193,19 @@ async def telegram_handler():
             lines = [line.strip() for line in text.splitlines() if line.strip()]
 
             is_signal = (
-                    any(line.startswith('#') for line in lines) and
-                    any('entry' in line.lower() for line in lines) and
-                    any('profit' in line.lower() for line in lines) and
-                    any('loss' in line.lower() for line in lines)
+                any(line.startswith('#') for line in lines) and
+                any('entry' in line.lower() for line in lines) and
+                any('profit' in line.lower() for line in lines) and
+                any('loss' in line.lower() for line in lines)
             )
 
             if is_signal:
-                print(f"[Signal] Detected signal message at {date}")
+                logger.info(f"Detected signal message at {date}")
                 first_line = lines[0] if lines else ""
                 pair = first_line.split()[0].strip('#') if first_line else "UNKNOWN"
                 setup_type = ("LONG" if "LONG" in first_line.upper()
-                              else "SHORT" if "SHORT" in first_line.upper()
-                else "UNKNOWN")
+                            else "SHORT" if "SHORT" in first_line.upper()
+                            else "UNKNOWN")
 
                 entry = extract_value("Entry", lines)
                 leverage = extract_value("Leverage", lines)
@@ -215,7 +225,7 @@ async def telegram_handler():
                     "type": "signal",
                     "pair": pair,
                     "setup_type": setup_type,
-                    "entry": entry,  # Original text for compatibility
+                    "entry": entry,
                     "leverage": leverage,
                     "tp1": tp1,
                     "tp2": tp2,
@@ -226,7 +236,7 @@ async def telegram_handler():
                     "full_message": text
                 })
             else:
-                print(f"[Market] Detected market message at {date}")
+                logger.info(f"Detected market message at {date}")
                 sender = event.message.sender.first_name if event.message.sender else "Unknown"
                 save_market(sender, text, date)
                 await send_to_clients({
@@ -237,7 +247,7 @@ async def telegram_handler():
                 })
 
         except Exception as e:
-            print(f"⚠️ Error processing message: {e}\nMessage: {text}")
+            logger.error(f"Error processing message: {e}\nMessage: {text}")
 
     await client.run_until_disconnected()
 
@@ -250,16 +260,18 @@ async def main():
         "0.0.0.0",
         6789,
         ping_interval=20,
-        ping_timeout=60
+        ping_timeout=120,
+        max_size=1000000
     )
-    print("🚀 WebSocket server started on wss://telegramsignals-production.up.railway.app")
+    logger.info("WebSocket server started on wss://telegramsignals-production.up.railway.app")
 
     try:
         await telegram_handler()
     finally:
         server.close()
         await server.wait_closed()
-        db.close()
+        db_pool.closeall()
+        logger.info("Server and database pool closed")
 
 if __name__ == "__main__":
     asyncio.run(main())
