@@ -105,7 +105,7 @@ export default function Dashboard() {
       setIsFetching(true);
 
       const response = await fetch(
-          "http://localhost:8000/fetch-past",
+          "https://telegramsignals-production-8606.up.railway.app/fetch-past",
           { method: "GET" }
       );
 
