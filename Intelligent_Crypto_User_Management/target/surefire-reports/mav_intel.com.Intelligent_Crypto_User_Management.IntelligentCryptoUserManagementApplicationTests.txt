@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: mav_intel.com.Intelligent_Crypto_User_Management.IntelligentCryptoUserManagementApplicationTests
--------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.279 s -- in mav_intel.com.Intelligent_Crypto_User_Management.IntelligentCryptoUserManagementApplicationTests
