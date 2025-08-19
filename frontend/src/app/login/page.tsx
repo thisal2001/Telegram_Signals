@@ -127,7 +127,7 @@ export default function LoginPage() {
                                 type="text"
                                 placeholder="Enter your username"
                                 value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
                                 required
                             />
                         </div>
@@ -140,7 +140,7 @@ export default function LoginPage() {
                                     type={showPassword ? "text" : "password"}
                                     placeholder="Enter your password"
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                                     required
                                     className="pr-12"
                                 />
