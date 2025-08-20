@@ -41,4 +41,8 @@ public class AuthController {
         response.put("token", token);
         return response;
     }
+    @GetMapping("/test")
+    public String test() {
+        return "Railway deployment is working!";
+    }
 }
