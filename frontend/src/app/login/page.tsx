@@ -78,24 +78,25 @@ export default function LoginPage() {
         try {
             const res = await fetch("https://telegramsignals-production-f507.up.railway.app/auth/login", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, password }),
             });
 
-            if (!res.ok) {
-                throw new Error("Invalid credentials");
-            }
-
             const data = await res.json();
-            localStorage.setItem("token", data.token); // store JWT
 
-            router.push("/dashboard"); // redirect after login
-        } catch (err: any) {
-            setError(err.message || "Login failed");
+            if (res.ok) {
+                // Save JWT token in localStorage
+                localStorage.setItem("token", data.token);
+                localStorage.setItem("username", data.username);
+                router.push("/dashboard"); // redirect to dashboard
+            } else {
+                setError(data.message || "Invalid credentials");
+            }
+        } catch (err) {
+            setError("Server error");
+            console.error(err);
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
