@@ -76,7 +76,7 @@ export default function LoginPage() {
         setError("");
 
         try {
-            const res = await fetch("telegramsignals-production-aa03.up.railway.app", {
+            const res = await fetch("telegramsignals-production-f507.up.railway.app", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, password }),
