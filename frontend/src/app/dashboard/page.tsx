@@ -78,27 +78,58 @@ export default function Dashboard() {
     fetchMessages();
   }, []);
 
-  // WebSocket connection
-  useEffect(() => {
-    const ws = new WebSocket("wss://telegramsignals-production.up.railway.app");
+    // WebSocket connection
+    useEffect(() => {
+        let ws: WebSocket;
+        let heartbeat: NodeJS.Timeout;
+        let reconnectTimeout: NodeJS.Timeout;
 
-    ws.onopen = () => setIsConnected(true);
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        const newMsg: Message = {
-          message_type: data.type || "market",
-          ...data,
+        const connect = () => {
+            ws = new WebSocket("wss://telegramsignals-production.up.railway.app");
+
+            ws.onopen = () => {
+                console.log("✅ WebSocket connected");
+                setIsConnected(true);
+
+                // Heartbeat every 30s
+                heartbeat = setInterval(() => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: "ping" }));
+                    }
+                }, 30000);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    const newMsg: Message = {
+                        message_type: data.type || "market",
+                        ...data,
+                    };
+                    setMessages((prev) => [newMsg, ...prev]);
+                } catch (error) {
+                    console.error("⚠️ WebSocket parse error:", error);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log("❌ WebSocket disconnected");
+                setIsConnected(false);
+                clearInterval(heartbeat);
+
+                // Try reconnect after 5s
+                reconnectTimeout = setTimeout(connect, 5000);
+            };
         };
-        setMessages((prev) => [newMsg, ...prev]);
-      } catch (error) {
-        console.error("WebSocket error:", error);
-      }
-    };
-    ws.onclose = () => setIsConnected(false);
 
-    return () => ws.close();
-  }, []);
+        connect();
+
+        return () => {
+            clearInterval(heartbeat);
+            clearTimeout(reconnectTimeout);
+            ws?.close();
+        };
+    }, []);
 
   const handleFetchPastMessages = async () => {
     try {
