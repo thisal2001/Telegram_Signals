@@ -1,34 +1,25 @@
 import os
 import asyncio
 import json
-import logging
-import websockets
-from websockets.exceptions import ConnectionClosed
 from telethon import TelegramClient, events
-from urllib.parse import urlparse
 from dotenv import load_dotenv
 from psycopg2.pool import SimpleConnectionPool
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+from urllib.parse import urlparse
+import websockets
+from websockets.exceptions import ConnectionClosed
 
 # Load environment variables
 load_dotenv()
 
-# Telegram API credentials
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 GROUP_ID = int(os.getenv("GROUP_ID"))
+DB_URL = os.getenv("DATABASE_URL")
 
 # Database connection pool
-db_url = os.getenv("DATABASE_URL")
-url = urlparse(db_url)
+url = urlparse(DB_URL)
 db_config = {
-    'dbname': url.path[1:],  # Remove leading /
+    'dbname': url.path[1:],  # remove leading /
     'user': url.username,
     'password': url.password,
     'host': url.hostname,
@@ -37,7 +28,11 @@ db_config = {
 }
 db_pool = SimpleConnectionPool(1, 20, **db_config)
 
-# Helper function for safe numeric conversion
+# WebSocket clients
+connected_clients = set()
+MAX_CONNECTIONS = 100
+
+# Helper for numeric conversion
 def to_float_safe(value):
     if not value:
         return None
@@ -47,7 +42,7 @@ def to_float_safe(value):
     except ValueError:
         return None
 
-# Table creation
+# Create tables if not exist
 def create_tables():
     conn = db_pool.getconn()
     try:
@@ -68,7 +63,7 @@ def create_tables():
                     full_message TEXT
                 );
             """)
-            logger.info("Checked/Created: signal_messages table")
+            print("Checked/Created: signal_messages table")
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS market_messages (
@@ -78,37 +73,29 @@ def create_tables():
                     timestamp TIMESTAMP
                 );
             """)
-            logger.info("Checked/Created: market_messages table")
+            print("Checked/Created: market_messages table")
             conn.commit()
     except Exception as e:
-        logger.error(f"Failed to create tables: {e}")
+        print(f"Failed to create tables: {e}")
         conn.rollback()
     finally:
         db_pool.putconn(conn)
 
-# WebSocket handling
-connected_clients = set()
-MAX_CONNECTIONS = 100
-
-async def websocket_handler(websocket):
+# WebSocket handler
+async def websocket_handler(ws):
     if len(connected_clients) >= MAX_CONNECTIONS:
-        logger.warning("Max connections reached, rejecting new connection")
-        await websocket.close(code=1008, reason="Max connections reached")
+        await ws.close(code=1008, reason="Max connections reached")
         return
-    logger.info("WebSocket client connected")
-    connected_clients.add(websocket)
+    connected_clients.add(ws)
+    print("WebSocket client connected")
     try:
-        async for message in websocket:
-            logger.debug(f"Received message: {message}")
+        async for msg in ws:
+            print(f"Received message from client: {msg}")
     except ConnectionClosed as e:
-        logger.warning(f"WebSocket connection closed: {e}")
-    except asyncio.exceptions.IncompleteReadError as e:
-        logger.warning(f"Incomplete read error: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected error in WebSocket handler: {e}")
+        print(f"WebSocket connection closed: {e}")
     finally:
-        connected_clients.remove(websocket)
-        logger.info("WebSocket client disconnected")
+        connected_clients.remove(ws)
+        print("WebSocket client disconnected")
 
 async def send_to_clients(data):
     if connected_clients:
@@ -116,7 +103,7 @@ async def send_to_clients(data):
         tasks = [client.send(message) for client in connected_clients]
         await asyncio.gather(*tasks, return_exceptions=True)
 
-# Improved value extractor
+# Extract value from lines
 def extract_value(label, lines):
     for line in lines:
         if label.lower() in line.lower():
@@ -152,9 +139,9 @@ def save_signal(pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, stop_loss
                 full_message
             ))
             conn.commit()
-            logger.info(f"Saved signal for pair: {pair}")
+            print(f"Saved signal: {pair}")
     except Exception as e:
-        logger.error(f"Failed to save signal: {e}, pair={pair}, entry={entry}, leverage={leverage}")
+        print(f"Failed to save signal: {e}")
         conn.rollback()
     finally:
         db_pool.putconn(conn)
@@ -168,22 +155,18 @@ def save_market(sender, text, timestamp):
                 VALUES (%s,%s,%s)
             """, (sender, text, timestamp))
             conn.commit()
-            logger.info("Saved market message")
+            print(f"Saved market message from {sender}")
     except Exception as e:
-        logger.error(f"Failed to save market message: {e}")
+        print(f"Failed to save market message: {e}")
         conn.rollback()
     finally:
         db_pool.putconn(conn)
 
-# Telegram listener
-async def telegram_handler():
-    client = TelegramClient('session', API_ID, API_HASH)
-    try:
-        await client.start()
-        logger.info("Telegram client started")
-    except Exception as e:
-        logger.error(f"Failed to start Telegram client: {e}")
-        return
+# Telegram client
+async def run_telegram_client(session_name="session"):
+    client = TelegramClient(f"sessions/{session_name}", API_ID, API_HASH)
+    await client.start()
+    print("Telegram client started")
 
     @client.on(events.NewMessage(chats=GROUP_ID))
     async def handler(event):
@@ -200,13 +183,12 @@ async def telegram_handler():
             )
 
             if is_signal:
-                logger.info(f"Detected signal message at {date}")
+                print(f"Signal message detected at {date}")
                 first_line = lines[0] if lines else ""
                 pair = first_line.split()[0].strip('#') if first_line else "UNKNOWN"
                 setup_type = ("LONG" if "LONG" in first_line.upper()
                             else "SHORT" if "SHORT" in first_line.upper()
                             else "UNKNOWN")
-
                 entry = extract_value("Entry", lines)
                 leverage = extract_value("Leverage", lines)
                 tp1 = extract_value("Target 1", lines) or extract_value("TP1", lines)
@@ -215,12 +197,7 @@ async def telegram_handler():
                 tp4 = extract_value("Target 4", lines) or extract_value("TP4", lines)
                 stop_loss = extract_value("Stop Loss", lines) or extract_value("SL", lines)
 
-                save_signal(
-                    pair, setup_type, entry, leverage,
-                    tp1, tp2, tp3, tp4, stop_loss,
-                    date, text
-                )
-
+                save_signal(pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, stop_loss, date, text)
                 await send_to_clients({
                     "type": "signal",
                     "pair": pair,
@@ -236,8 +213,8 @@ async def telegram_handler():
                     "full_message": text
                 })
             else:
-                logger.info(f"Detected market message at {date}")
                 sender = event.message.sender.first_name if event.message.sender else "Unknown"
+                print(f"Market message detected at {date}")
                 save_market(sender, text, date)
                 await send_to_clients({
                     "type": "market",
@@ -245,16 +222,14 @@ async def telegram_handler():
                     "text": text,
                     "timestamp": date.isoformat()
                 })
-
         except Exception as e:
-            logger.error(f"Error processing message: {e}\nMessage: {text}")
+            print(f"Error processing message: {e}\nMessage: {text}")
 
     await client.run_until_disconnected()
 
-# Main function
+# Main
 async def main():
     create_tables()
-
     server = await websockets.serve(
         websocket_handler,
         "0.0.0.0",
@@ -263,15 +238,15 @@ async def main():
         ping_timeout=120,
         max_size=1000000
     )
-    logger.info("WebSocket server started on wss://telegramsignals-production.up.railway.app")
+    print("WebSocket server started")
 
     try:
-        await telegram_handler()
+        await run_telegram_client("session")  # uses your session.session file
     finally:
         server.close()
         await server.wait_closed()
         db_pool.closeall()
-        logger.info("Server and database pool closed")
+        print("Server and database pool closed")
 
 if __name__ == "__main__":
     asyncio.run(main())
