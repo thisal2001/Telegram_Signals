@@ -164,7 +164,7 @@ def save_market(sender, text, timestamp):
 
 # Telegram client
 async def run_telegram_client(session_name="session"):
-    client = TelegramClient(f"sessions/{session_name}", API_ID, API_HASH)
+    client = TelegramClient(session_name, API_ID, API_HASH)
     await client.start()
     print("Telegram client started")
 
