@@ -76,7 +76,7 @@ export default function LoginPage() {
         setError("");
 
         try {
-            const res = await fetch("https://telegramsignals-production-f507.up.railway.app/auth/login", {
+            const res = await fetch("https://tg-message-extractor-2.onrender.com/auth/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, password }),
