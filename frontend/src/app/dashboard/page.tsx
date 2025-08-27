@@ -85,7 +85,7 @@ export default function Dashboard() {
         let reconnectTimeout: NodeJS.Timeout;
 
         const connect = () => {
-            ws = new WebSocket("wss://telegramsignals-production.up.railway.app");
+            ws = new WebSocket("wss://tg-message-extractor.onrender.com");
 
             ws.onopen = () => {
                 console.log("✅ WebSocket connected");
@@ -136,7 +136,7 @@ export default function Dashboard() {
       setIsFetching(true);
 
       const response = await fetch(
-          "https://telegramsignals-production-8606.up.railway.app/fetch-past",
+          "https://tg-message-extractor-1.onrender.com/fetch-past",
           { method: "GET" }
       );
 
