@@ -85,7 +85,7 @@ export default function Dashboard() {
         let reconnectTimeout: NodeJS.Timeout;
 
         const connect = () => {
-            ws = new WebSocket("wss://tg-message-extractor.onrender.com:10000");
+            ws = new WebSocket("wss://tg-message-extractor.onrender.com");
 
             ws.onopen = () => {
                 console.log("✅ WebSocket connected");
