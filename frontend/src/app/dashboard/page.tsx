@@ -1,6 +1,5 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { useEffect, useState,useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   TrendingUp,
@@ -78,28 +77,40 @@ export default function Dashboard() {
     fetchMessages();
   }, []);
 
-    // WebSocket connection
+    const wsRef = useRef<WebSocket | null>(null);
+    const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
+    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     useEffect(() => {
-        let ws: WebSocket;
-        let heartbeat: NodeJS.Timeout;
-        let reconnectTimeout: NodeJS.Timeout;
-
         const connect = () => {
-            ws = new WebSocket("wss://tg-message-extractor.onrender.com");
+            if (wsRef.current) {
+                wsRef.current.close();
+            }
 
-            ws.onopen = () => {
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+                reconnectTimeoutRef.current = null;
+            }
+
+            const websocket = new WebSocket("wss://tg-message-extractor.onrender.com/ws");
+            wsRef.current = websocket;
+
+            websocket.onopen = () => {
                 console.log("✅ WebSocket connected");
                 setIsConnected(true);
 
-                // Heartbeat every 30s
-                heartbeat = setInterval(() => {
-                    if (ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({ type: "ping" }));
+                if (heartbeatRef.current) {
+                    clearInterval(heartbeatRef.current);
+                }
+
+                heartbeatRef.current = setInterval(() => {
+                    if (websocket.readyState === WebSocket.OPEN) {
+                        websocket.send(JSON.stringify({ type: "ping" }));
                     }
                 }, 30000);
             };
 
-            ws.onmessage = (event) => {
+            websocket.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
                     const newMsg: Message = {
@@ -112,24 +123,38 @@ export default function Dashboard() {
                 }
             };
 
-            ws.onclose = () => {
+            websocket.onerror = (error) => {
+                console.error("WebSocket error:", error);
+            };
+
+            websocket.onclose = () => {
                 console.log("❌ WebSocket disconnected");
                 setIsConnected(false);
-                clearInterval(heartbeat);
 
-                // Try reconnect after 5s
-                reconnectTimeout = setTimeout(connect, 5000);
+                if (heartbeatRef.current) {
+                    clearInterval(heartbeatRef.current);
+                    heartbeatRef.current = null;
+                }
+
+                reconnectTimeoutRef.current = setTimeout(connect, 5000);
             };
         };
 
         connect();
 
         return () => {
-            clearInterval(heartbeat);
-            clearTimeout(reconnectTimeout);
-            ws?.close();
+            if (wsRef.current) {
+                wsRef.current.close();
+            }
+            if (heartbeatRef.current) {
+                clearInterval(heartbeatRef.current);
+            }
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+            }
         };
     }, []);
+
 
   const handleFetchPastMessages = async () => {
     try {
