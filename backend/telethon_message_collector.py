@@ -3,6 +3,7 @@ import asyncio
 import json
 import asyncpg
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 
@@ -10,6 +11,7 @@ from urllib.parse import urlparse
 load_dotenv()
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
+SESSION_STRING= os.getenv("SESSION_STRING")  # ✅ use this
 GROUP_ID = int(os.getenv("GROUP_ID"))
 DB_URL = os.getenv("DATABASE_URL")
 
@@ -71,7 +73,6 @@ async def create_tables():
                 timestamp TIMESTAMP
             );
         """)
-        # Create indexes for better performance
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_signal_timestamp ON signal_messages(timestamp);")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_market_timestamp ON market_messages(timestamp);")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_signal_pair ON signal_messages(pair);")
@@ -103,7 +104,6 @@ async def flush_buffers():
                     """, market_buffer)
                     print(f"✅ Flushed {len(market_buffer)} market messages to PostgreSQL")
 
-                # Clear buffers after successful insert
                 signal_buffer = []
                 market_buffer = []
 
@@ -124,8 +124,7 @@ def extract_value(label, lines):
     return None
 
 async def run_telegram_client():
-    # Use your existing session file instead of MemorySession
-    client = TelegramClient('session', API_ID, API_HASH)
+    client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)  # ✅ use StringSession
 
     await client.start()
     print("✅ Telegram client started and authenticated")
@@ -187,7 +186,6 @@ async def main():
     global db_pool
 
     try:
-        # Database setup
         if not DB_URL:
             print("❌ DATABASE_URL environment variable is required")
             return
@@ -196,13 +194,9 @@ async def main():
         db_pool = await asyncpg.create_pool(**db_config, min_size=1, max_size=10)
         print("✅ Connected to Neon PostgreSQL")
 
-        # Create tables
         await create_tables()
 
-        # Start buffer flusher
         asyncio.create_task(flush_buffers())
-
-        # Start Telegram client
         await run_telegram_client()
 
     except Exception as e:
