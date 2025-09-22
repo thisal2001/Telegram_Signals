@@ -6,16 +6,21 @@ from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from dotenv import load_dotenv
 from urllib.parse import urlparse
+import websockets
 
-# Load env
+# ----------------------------
+# Load environment variables
+# ----------------------------
 load_dotenv()
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
-SESSION_STRING= os.getenv("SESSION_STRING")  # ✅ use this
+SESSION_STRING = os.getenv("SESSION_STRING")
 GROUP_ID = int(os.getenv("GROUP_ID"))
 DB_URL = os.getenv("DATABASE_URL")
 
-# Parse DB URL for Neon
+# ----------------------------
+# DB helper
+# ----------------------------
 def get_db_config():
     url = urlparse(DB_URL)
     return {
@@ -23,18 +28,19 @@ def get_db_config():
         'password': url.password,
         'database': url.path[1:],
         'host': url.hostname,
-        'port': url.port,
+        'port': url.port or 5432,
         'ssl': 'require'
     }
 
-# DB pool
+# ----------------------------
+# Globals
+# ----------------------------
 db_pool = None
-
-# Buffers for batch inserts
 signal_buffer = []
 market_buffer = []
 BATCH_SIZE = 10
 FLUSH_INTERVAL = 5
+connected_clients = set()
 
 def to_float_safe(value):
     if not value or value == "None" or value.lower() == "none":
@@ -44,9 +50,12 @@ def to_float_safe(value):
         if not cleaned or cleaned == '-':
             return None
         return float(cleaned)
-    except (ValueError, TypeError):
+    except:
         return None
 
+# ----------------------------
+# DB tables
+# ----------------------------
 async def create_tables():
     async with db_pool.acquire() as conn:
         await conn.execute("""
@@ -78,13 +87,15 @@ async def create_tables():
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_signal_pair ON signal_messages(pair);")
         print("✅ PostgreSQL tables and indexes created")
 
+# ----------------------------
+# Batch insert to DB
+# ----------------------------
 async def flush_buffers():
     global signal_buffer, market_buffer
     while True:
         await asyncio.sleep(FLUSH_INTERVAL)
         if not signal_buffer and not market_buffer:
             continue
-
         try:
             async with db_pool.acquire() as conn:
                 if signal_buffer:
@@ -109,9 +120,32 @@ async def flush_buffers():
 
         except Exception as e:
             print(f"❌ Batch insert failed: {e}")
-            import traceback
-            traceback.print_exc()
 
+# ----------------------------
+# WebSocket
+# ----------------------------
+async def websocket_handler(websocket, path):
+    connected_clients.add(websocket)
+    try:
+        async for message in websocket:
+            await websocket.send("Server received: " + message)
+    except:
+        pass
+    finally:
+        connected_clients.remove(websocket)
+
+async def broadcast_message(message: str):
+    if connected_clients:
+        await asyncio.wait([client.send(message) for client in connected_clients])
+
+async def start_websocket_server():
+    server = await websockets.serve(websocket_handler, "0.0.0.0", 8765)
+    print("🌐 WebSocket server running on ws://0.0.0.0:8765")
+    await server.wait_closed()
+
+# ----------------------------
+# Telegram message parser
+# ----------------------------
 def extract_value(label, lines):
     for line in lines:
         if label.lower() in line.lower():
@@ -124,8 +158,7 @@ def extract_value(label, lines):
     return None
 
 async def run_telegram_client():
-    client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)  # ✅ use StringSession
-
+    client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
     await client.start()
     print("✅ Telegram client started and authenticated")
 
@@ -168,23 +201,29 @@ async def run_telegram_client():
                 ))
 
                 print(f"✅ Signal detected: {pair} {setup_type}")
-
             else:
                 sender = event.message.sender.first_name if event.message.sender else "Unknown"
                 market_buffer.append((sender, text, date))
                 print(f"📊 Market message: {text[:100]}...")
 
+            # Broadcast message to WebSocket clients
+            await broadcast_message(json.dumps({
+                "text": text,
+                "date": str(date),
+                "is_signal": is_signal
+            }))
+
         except Exception as e:
             print(f"❌ Error processing message: {e}")
-            import traceback
-            traceback.print_exc()
 
     print("👂 Listening for Telegram messages...")
     await client.run_until_disconnected()
 
+# ----------------------------
+# Main
+# ----------------------------
 async def main():
     global db_pool
-
     try:
         if not DB_URL:
             print("❌ DATABASE_URL environment variable is required")
@@ -197,12 +236,11 @@ async def main():
         await create_tables()
 
         asyncio.create_task(flush_buffers())
+        asyncio.create_task(start_websocket_server())
         await run_telegram_client()
 
     except Exception as e:
         print(f"💥 Fatal error: {e}")
-        import traceback
-        traceback.print_exc()
     finally:
         if db_pool:
             await db_pool.close()
