@@ -92,7 +92,7 @@ export default function Dashboard() {
                 reconnectTimeoutRef.current = null;
             }
 
-            const websocket = new WebSocket("wss://tg-message-extractor.onrender.com/ws");
+            const websocket = new WebSocket("wss://telegramsignals-production.up.railway.app");
             wsRef.current = websocket;
 
             websocket.onopen = () => {
