@@ -167,6 +167,10 @@ async def run_telegram_client():
         try:
             text = event.message.message
             date = event.message.date
+            # ✅ Make datetime naive (UTC)
+            if date.tzinfo is not None:
+                date = date.replace(tzinfo=None)
+
             lines = [line.strip() for line in text.splitlines() if line.strip()]
 
             is_signal = (
