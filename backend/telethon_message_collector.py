@@ -7,6 +7,7 @@ from telethon.sessions import StringSession
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 import websockets
+from datetime import timezone
 
 # ----------------------------
 # Load environment variables
@@ -70,7 +71,7 @@ async def create_tables():
                 tp3 DECIMAL(18,8),
                 tp4 DECIMAL(18,8),
                 stop_loss DECIMAL(18,8),
-                timestamp TIMESTAMP,
+                timestamp TIMESTAMPTZ,
                 full_message TEXT UNIQUE
             );
         """)
@@ -79,7 +80,7 @@ async def create_tables():
                 id SERIAL PRIMARY KEY,
                 sender VARCHAR(50),
                 text TEXT UNIQUE,
-                timestamp TIMESTAMP
+                timestamp TIMESTAMPTZ
             );
         """)
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_signal_timestamp ON signal_messages(timestamp);")
@@ -99,6 +100,15 @@ async def flush_buffers():
         try:
             async with db_pool.acquire() as conn:
                 if signal_buffer:
+                    # Normalize timestamps to UTC
+                    signal_buffer = [
+                        (
+                            *item[:-2],
+                            item[-2].astimezone(timezone.utc) if item[-2] else None,
+                            item[-1]
+                        )
+                        for item in signal_buffer
+                    ]
                     await conn.executemany("""
                         INSERT INTO signal_messages
                         (pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, stop_loss, timestamp, full_message)
@@ -108,6 +118,15 @@ async def flush_buffers():
                     print(f"✅ Flushed {len(signal_buffer)} signals to PostgreSQL")
 
                 if market_buffer:
+                    # Normalize timestamps to UTC
+                    market_buffer = [
+                        (
+                            item[0],
+                            item[1],
+                            item[2].astimezone(timezone.utc) if item[2] else None,
+                        )
+                        for item in market_buffer
+                    ]
                     await conn.executemany("""
                         INSERT INTO market_messages (sender, text, timestamp)
                         VALUES ($1,$2,$3)
@@ -167,6 +186,10 @@ async def run_telegram_client():
         try:
             text = event.message.message
             date = event.message.date
+            # Normalize to UTC
+            if date:
+                date = date.astimezone(timezone.utc)
+
             lines = [line.strip() for line in text.splitlines() if line.strip()]
 
             is_signal = (
