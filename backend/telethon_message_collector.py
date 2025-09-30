@@ -7,6 +7,7 @@ from telethon.sessions import StringSession
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 import websockets
+from decimal import Decimal
 
 # ----------------------------
 # Load environment variables
@@ -38,18 +39,20 @@ def get_db_config():
 db_pool = None
 signal_buffer = []
 market_buffer = []
+buffer_lock = asyncio.Lock()  # ✅ protect buffers
 BATCH_SIZE = 10
 FLUSH_INTERVAL = 5
 connected_clients = set()
 
-def to_float_safe(value):
-    if not value or value == "None" or value.lower() == "none":
+def to_decimal_safe(value):
+    """Convert cleaned string to Decimal(18,8) or None"""
+    if not value or str(value).lower() == "none":
         return None
     try:
         cleaned = ''.join(c for c in str(value) if c.isdigit() or c in ('.', '-'))
-        if not cleaned or cleaned == '-':
+        if not cleaned or cleaned == "-":
             return None
-        return float(cleaned)
+        return Decimal(cleaned).quantize(Decimal("0.00000001"))
     except:
         return None
 
@@ -94,32 +97,33 @@ async def flush_buffers():
     global signal_buffer, market_buffer
     while True:
         await asyncio.sleep(FLUSH_INTERVAL)
-        if not signal_buffer and not market_buffer:
-            continue
-        try:
-            async with db_pool.acquire() as conn:
-                if signal_buffer:
-                    await conn.executemany("""
-                        INSERT INTO signal_messages
-                        (pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, stop_loss, timestamp, full_message)
-                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-                        ON CONFLICT (full_message) DO NOTHING
-                    """, signal_buffer)
-                    print(f"✅ Flushed {len(signal_buffer)} signals to PostgreSQL")
+        async with buffer_lock:
+            if not signal_buffer and not market_buffer:
+                continue
+            try:
+                async with db_pool.acquire() as conn:
+                    if signal_buffer:
+                        await conn.executemany("""
+                            INSERT INTO signal_messages
+                            (pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, stop_loss, timestamp, full_message)
+                            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                            ON CONFLICT (full_message) DO NOTHING
+                        """, signal_buffer)
+                        print(f"✅ Flushed {len(signal_buffer)} signals to PostgreSQL")
 
-                if market_buffer:
-                    await conn.executemany("""
-                        INSERT INTO market_messages (sender, text, timestamp)
-                        VALUES ($1,$2,$3)
-                        ON CONFLICT (text) DO NOTHING
-                    """, market_buffer)
-                    print(f"✅ Flushed {len(market_buffer)} market messages to PostgreSQL")
+                    if market_buffer:
+                        await conn.executemany("""
+                            INSERT INTO market_messages (sender, text, timestamp)
+                            VALUES ($1,$2,$3)
+                            ON CONFLICT (text) DO NOTHING
+                        """, market_buffer)
+                        print(f"✅ Flushed {len(market_buffer)} market messages to PostgreSQL")
 
-                signal_buffer = []
-                market_buffer = []
+                    signal_buffer = []
+                    market_buffer = []
 
-        except Exception as e:
-            print(f"❌ Batch insert failed: {e}")
+            except Exception as e:
+                print(f"❌ Batch insert failed: {e}")
 
 # ----------------------------
 # WebSocket
@@ -164,11 +168,11 @@ async def run_telegram_client():
 
     @client.on(events.NewMessage(chats=GROUP_ID))
     async def handler(event):
+        global signal_buffer, market_buffer
         try:
             text = event.message.message
             date = event.message.date
-            # ✅ Make datetime naive (UTC)
-            if date.tzinfo is not None:
+            if date.tzinfo is not None:  # ✅ make naive
                 date = date.replace(tzinfo=None)
 
             lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -180,44 +184,48 @@ async def run_telegram_client():
                 any('loss' in line.lower() for line in lines)
             )
 
-            if is_signal:
-                first_line = lines[0] if lines else ""
-                pair = first_line.split()[0].strip('#') if first_line else "UNKNOWN"
-                setup_type = ("LONG" if "LONG" in first_line.upper()
-                              else "SHORT" if "SHORT" in first_line.upper()
-                              else "UNKNOWN")
+            async with buffer_lock:
+                if is_signal:
+                    first_line = lines[0] if lines else ""
+                    pair = first_line.split()[0].strip('#') if first_line else "UNKNOWN"
+                    setup_type = ("LONG" if "LONG" in first_line.upper()
+                                  else "SHORT" if "SHORT" in first_line.upper()
+                                  else "UNKNOWN")
 
-                entry = extract_value("Entry", lines)
-                leverage = extract_value("Leverage", lines)
-                tp1 = extract_value("Target 1", lines) or extract_value("TP1", lines)
-                tp2 = extract_value("Target 2", lines) or extract_value("TP2", lines)
-                tp3 = extract_value("Target 3", lines) or extract_value("TP3", lines)
-                tp4 = extract_value("Target 4", lines) or extract_value("TP4", lines)
-                stop_loss = extract_value("Stop Loss", lines) or extract_value("SL", lines)
+                    entry = extract_value("Entry", lines)
+                    leverage = extract_value("Leverage", lines)
+                    tp1 = extract_value("Target 1", lines) or extract_value("TP1", lines)
+                    tp2 = extract_value("Target 2", lines) or extract_value("TP2", lines)
+                    tp3 = extract_value("Target 3", lines) or extract_value("TP3", lines)
+                    tp4 = extract_value("Target 4", lines) or extract_value("TP4", lines)
+                    stop_loss = extract_value("Stop Loss", lines) or extract_value("SL", lines)
 
-                signal_buffer.append((
-                    pair, setup_type,
-                    to_float_safe(entry),
-                    int(to_float_safe(leverage.replace('x',''))) if leverage and leverage != "None" else None,
-                    to_float_safe(tp1), to_float_safe(tp2),
-                    to_float_safe(tp3), to_float_safe(tp4),
-                    to_float_safe(stop_loss), date, text
-                ))
+                    signal_buffer.append((
+                        pair, setup_type,
+                        to_decimal_safe(entry),
+                        int(to_decimal_safe(leverage.replace('x',''))) if leverage and leverage != "None" else None,
+                        to_decimal_safe(tp1), to_decimal_safe(tp2),
+                        to_decimal_safe(tp3), to_decimal_safe(tp4),
+                        to_decimal_safe(stop_loss), date, text
+                    ))
 
-                print(f"✅ Signal detected: {pair} {setup_type}")
-            else:
-                # ✅ Fix: handle both user and channel senders safely
-                if event.message.sender:
-                    sender = getattr(event.message.sender, "first_name", None) \
-                             or getattr(event.message.sender, "title", None) \
-                             or str(event.message.sender_id)
+                    print(f"✅ Signal detected: {pair} {setup_type}")
                 else:
-                    sender = getattr(event.chat, "title", None) or str(event.chat_id)
+                    if event.message.sender:
+                        sender = getattr(event.message.sender, "first_name", None) \
+                                 or getattr(event.message.sender, "title", None) \
+                                 or str(event.message.sender_id)
+                    else:
+                        sender = getattr(event.chat, "title", None) or str(event.chat_id)
 
-                market_buffer.append((sender, text, date))
-                print(f"📊 Market message from {sender}: {text[:100]}...")
+                    market_buffer.append((sender, text, date))
+                    print(f"📊 Market message from {sender}: {text[:100]}...")
 
-            # Broadcast message to WebSocket clients
+                # ✅ Flush immediately if batch size reached
+                if len(signal_buffer) >= BATCH_SIZE or len(market_buffer) >= BATCH_SIZE:
+                    await flush_buffers()
+
+            # Broadcast to WebSocket clients
             await broadcast_message(json.dumps({
                 "text": text,
                 "date": str(date),
@@ -241,7 +249,7 @@ async def main():
             return
 
         db_config = get_db_config()
-        db_pool = await asyncpg.create_pool(**db_config, min_size=1, max_size=10)
+        db_pool = await asyncpg.create_pool(**db_config, min_size=1, max_size=5)
         print("✅ Connected to Neon PostgreSQL")
 
         await create_tables()
