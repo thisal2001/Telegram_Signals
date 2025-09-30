@@ -77,7 +77,7 @@ async def create_tables():
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS market_messages (
                 id SERIAL PRIMARY KEY,
-                sender VARCHAR(50),
+                sender VARCHAR(100),
                 text TEXT UNIQUE,
                 timestamp TIMESTAMP
             );
@@ -206,9 +206,16 @@ async def run_telegram_client():
 
                 print(f"✅ Signal detected: {pair} {setup_type}")
             else:
-                sender = event.message.sender.first_name if event.message.sender else "Unknown"
+                # ✅ Fix: handle both user and channel senders safely
+                if event.message.sender:
+                    sender = getattr(event.message.sender, "first_name", None) \
+                             or getattr(event.message.sender, "title", None) \
+                             or str(event.message.sender_id)
+                else:
+                    sender = getattr(event.chat, "title", None) or str(event.chat_id)
+
                 market_buffer.append((sender, text, date))
-                print(f"📊 Market message: {text[:100]}...")
+                print(f"📊 Market message from {sender}: {text[:100]}...")
 
             # Broadcast message to WebSocket clients
             await broadcast_message(json.dumps({
