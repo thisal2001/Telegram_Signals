@@ -6,8 +6,8 @@ from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from dotenv import load_dotenv
 from urllib.parse import urlparse
-import websockets
 from decimal import Decimal
+import websockets
 
 # ----------------------------
 # Load environment variables
@@ -30,7 +30,8 @@ def get_db_config():
         'database': url.path[1:],
         'host': url.hostname,
         'port': url.port or 5432,
-        'ssl': 'require'
+        'ssl': 'require',
+        'command_timeout': 30  # safe for Neon
     }
 
 # ----------------------------
@@ -39,9 +40,9 @@ def get_db_config():
 db_pool = None
 signal_buffer = []
 market_buffer = []
-buffer_lock = asyncio.Lock()  # ✅ protect buffers
-BATCH_SIZE = 10
-FLUSH_INTERVAL = 5
+buffer_lock = asyncio.Lock()
+BATCH_SIZE = 30
+FLUSH_INTERVAL = 20
 connected_clients = set()
 
 def to_decimal_safe(value):
@@ -61,34 +62,35 @@ def to_decimal_safe(value):
 # ----------------------------
 async def create_tables():
     async with db_pool.acquire() as conn:
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS signal_messages (
-                id SERIAL PRIMARY KEY,
-                pair VARCHAR(50),
-                setup_type VARCHAR(10),
-                entry DECIMAL(18,8),
-                leverage INTEGER,
-                tp1 DECIMAL(18,8),
-                tp2 DECIMAL(18,8),
-                tp3 DECIMAL(18,8),
-                tp4 DECIMAL(18,8),
-                stop_loss DECIMAL(18,8),
-                timestamp TIMESTAMP,
-                full_message TEXT UNIQUE
-            );
-        """)
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS market_messages (
-                id SERIAL PRIMARY KEY,
-                sender VARCHAR(100),
-                text TEXT UNIQUE,
-                timestamp TIMESTAMP
-            );
-        """)
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_signal_timestamp ON signal_messages(timestamp);")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_market_timestamp ON market_messages(timestamp);")
-        await conn.execute("CREATE INDEX IF NOT EXISTS idx_signal_pair ON signal_messages(pair);")
-        print("✅ PostgreSQL tables and indexes created")
+        async with conn.transaction():
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS signal_messages (
+                    id SERIAL PRIMARY KEY,
+                    pair VARCHAR(50),
+                    setup_type VARCHAR(10),
+                    entry DECIMAL(18,8),
+                    leverage INTEGER,
+                    tp1 DECIMAL(18,8),
+                    tp2 DECIMAL(18,8),
+                    tp3 DECIMAL(18,8),
+                    tp4 DECIMAL(18,8),
+                    stop_loss DECIMAL(18,8),
+                    timestamp TIMESTAMP,
+                    full_message TEXT UNIQUE
+                );
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS market_messages (
+                    id SERIAL PRIMARY KEY,
+                    sender VARCHAR(100),
+                    text TEXT UNIQUE,
+                    timestamp TIMESTAMP
+                );
+            """)
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_signal_timestamp ON signal_messages(timestamp);")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_market_timestamp ON market_messages(timestamp);")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_signal_pair ON signal_messages(pair);")
+    print("✅ PostgreSQL tables and indexes created")
 
 # ----------------------------
 # Batch insert to DB
@@ -102,25 +104,26 @@ async def flush_buffers():
                 continue
             try:
                 async with db_pool.acquire() as conn:
-                    if signal_buffer:
-                        await conn.executemany("""
-                            INSERT INTO signal_messages
-                            (pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, stop_loss, timestamp, full_message)
-                            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-                            ON CONFLICT (full_message) DO NOTHING
-                        """, signal_buffer)
-                        print(f"✅ Flushed {len(signal_buffer)} signals to PostgreSQL")
+                    async with conn.transaction():
+                        if signal_buffer:
+                            await conn.executemany("""
+                                INSERT INTO signal_messages
+                                (pair, setup_type, entry, leverage, tp1, tp2, tp3, tp4, stop_loss, timestamp, full_message)
+                                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                                ON CONFLICT (full_message) DO NOTHING
+                            """, signal_buffer)
+                            print(f"✅ Flushed {len(signal_buffer)} signals to PostgreSQL")
 
-                    if market_buffer:
-                        await conn.executemany("""
-                            INSERT INTO market_messages (sender, text, timestamp)
-                            VALUES ($1,$2,$3)
-                            ON CONFLICT (text) DO NOTHING
-                        """, market_buffer)
-                        print(f"✅ Flushed {len(market_buffer)} market messages to PostgreSQL")
+                        if market_buffer:
+                            await conn.executemany("""
+                                INSERT INTO market_messages (sender, text, timestamp)
+                                VALUES ($1,$2,$3)
+                                ON CONFLICT (text) DO NOTHING
+                            """, market_buffer)
+                            print(f"✅ Flushed {len(market_buffer)} market messages to PostgreSQL")
 
-                    signal_buffer = []
-                    market_buffer = []
+                signal_buffer = []
+                market_buffer = []
 
             except Exception as e:
                 print(f"❌ Batch insert failed: {e}")
@@ -140,7 +143,7 @@ async def websocket_handler(websocket, path):
 
 async def broadcast_message(message: str):
     if connected_clients:
-        await asyncio.wait([client.send(message) for client in connected_clients])
+        await asyncio.gather(*(client.send(message) for client in connected_clients), return_exceptions=True)
 
 async def start_websocket_server():
     server = await websockets.serve(websocket_handler, "0.0.0.0", 8765)
@@ -172,7 +175,7 @@ async def run_telegram_client():
         try:
             text = event.message.message
             date = event.message.date
-            if date.tzinfo is not None:  # ✅ make naive
+            if date.tzinfo is not None:
                 date = date.replace(tzinfo=None)
 
             lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -211,19 +214,11 @@ async def run_telegram_client():
 
                     print(f"✅ Signal detected: {pair} {setup_type}")
                 else:
-                    if event.message.sender:
-                        sender = getattr(event.message.sender, "first_name", None) \
-                                 or getattr(event.message.sender, "title", None) \
-                                 or str(event.message.sender_id)
-                    else:
-                        sender = getattr(event.chat, "title", None) or str(event.chat_id)
-
+                    sender = getattr(event.message.sender, "first_name", None) \
+                             or getattr(event.message.sender, "title", None) \
+                             or str(event.message.sender_id)
                     market_buffer.append((sender, text, date))
                     print(f"📊 Market message from {sender}: {text[:100]}...")
-
-                # ✅ Flush immediately if batch size reached
-                if len(signal_buffer) >= BATCH_SIZE or len(market_buffer) >= BATCH_SIZE:
-                    await flush_buffers()
 
             # Broadcast to WebSocket clients
             await broadcast_message(json.dumps({
@@ -249,14 +244,16 @@ async def main():
             return
 
         db_config = get_db_config()
-        db_pool = await asyncpg.create_pool(**db_config, min_size=1, max_size=5)
+        db_pool = await asyncpg.create_pool(**db_config, min_size=0, max_size=1)
         print("✅ Connected to Neon PostgreSQL")
 
         await create_tables()
 
-        asyncio.create_task(flush_buffers())
-        asyncio.create_task(start_websocket_server())
-        await run_telegram_client()
+        await asyncio.gather(
+            flush_buffers(),
+            start_websocket_server(),
+            run_telegram_client()
+        )
 
     except Exception as e:
         print(f"💥 Fatal error: {e}")
