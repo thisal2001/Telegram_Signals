@@ -1,14 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Slider } from "@/components/ui/slider"
-import { RefreshCw, TrendingUp, TrendingDown, DollarSign, Shield, Zap, Settings } from "lucide-react"
+import { RefreshCw, TrendingUp, TrendingDown, DollarSign, Shield, Zap, Settings, ArrowLeft, Play, Target } from "lucide-react"
 
 interface TradeExecution {
     id: string
@@ -53,8 +46,21 @@ export default function TradingDashboard() {
     const [positions, setPositions] = useState<PositionInfo[]>([])
     const [account, setAccount] = useState<AccountInfo | null>(null)
     const [isLoading, setIsLoading] = useState(false)
+    const [activeTab, setActiveTab] = useState<"dashboard" | "config">("dashboard")
     const [positionSize, setPositionSize] = useState(1000)
-    const [maxLeverage, setMaxLeverage] = useState([20])
+    const [maxLeverage, setMaxLeverage] = useState(20)
+
+    const [manualTrade, setManualTrade] = useState({
+        symbol: "BTCUSDT",
+        side: "LONG" as "LONG" | "SHORT",
+        positionSize: 1000,
+        leverage: 10,
+        stopLoss: "",
+        takeProfit1: "",
+        takeProfit2: "",
+        takeProfit3: "",
+        takeProfit4: "",
+    })
 
     useEffect(() => {
         setExecutions([
@@ -107,154 +113,204 @@ export default function TradingDashboard() {
     }
 
     const savePositionConfig = () => {
-        console.log("Saving position config:", { positionSize, maxLeverage: maxLeverage[0] })
+        console.log("Saving position config:", { positionSize, maxLeverage })
+    }
+
+    const executeManualTrade = () => {
+        console.log("Executing manual trade:", manualTrade)
+        alert(`Manual trade executed: ${manualTrade.side} ${manualTrade.symbol} with ${manualTrade.leverage}x leverage`)
     }
 
     return (
-        <div className="container mx-auto p-6 space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Trading Dashboard</h1>
-                    <p className="text-muted-foreground">Monitor your Binance futures trading activity</p>
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+            {/* Header */}
+            <header className="backdrop-blur-xl bg-white/5 border-b border-white/10 sticky top-0 z-50">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                            <button
+                                onClick={() => window.history.back()}
+                                className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                            >
+                                <ArrowLeft className="w-5 h-5 text-white" />
+                            </button>
+                            <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
+                                    <DollarSign className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                                        Trading Dashboard
+                                    </h1>
+                                    <p className="text-sm text-gray-400">Binance futures monitoring</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={refreshData}
+                            disabled={isLoading}
+                            className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all duration-200 text-white border border-white/20"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                            <span>Refresh</span>
+                        </button>
+                    </div>
                 </div>
-                <Button onClick={refreshData} disabled={isLoading} variant="outline">
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-                    Refresh
-                </Button>
-            </div>
+            </header>
 
-            {account && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Balance</CardTitle>
-                            <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">${account.totalBalance.toFixed(2)}</div>
-                            <p className="text-xs text-muted-foreground">USDT</p>
-                        </CardContent>
-                    </Card>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+                {/* Account Overview Cards */}
+                {account && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 hover:scale-105 transition-transform duration-300">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-gray-300">Total Balance</span>
+                                <DollarSign className="w-4 h-4 text-purple-400" />
+                            </div>
+                            <div className="text-2xl font-bold text-white">${account.totalBalance.toFixed(2)}</div>
+                            <p className="text-xs text-gray-400 mt-1">USDT</p>
+                        </div>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
-                            <Zap className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">${account.availableBalance.toFixed(2)}</div>
-                            <p className="text-xs text-muted-foreground">Ready to trade</p>
-                        </CardContent>
-                    </Card>
+                        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 hover:scale-105 transition-transform duration-300">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-gray-300">Available Balance</span>
+                                <Zap className="w-4 h-4 text-yellow-400" />
+                            </div>
+                            <div className="text-2xl font-bold text-white">${account.availableBalance.toFixed(2)}</div>
+                            <p className="text-xs text-gray-400 mt-1">Ready to trade</p>
+                        </div>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Margin</CardTitle>
-                            <Shield className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">${account.totalMargin.toFixed(2)}</div>
-                            <p className="text-xs text-muted-foreground">In positions</p>
-                        </CardContent>
-                    </Card>
+                        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 hover:scale-105 transition-transform duration-300">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-gray-300">Total Margin</span>
+                                <Shield className="w-4 h-4 text-blue-400" />
+                            </div>
+                            <div className="text-2xl font-bold text-white">${account.totalMargin.toFixed(2)}</div>
+                            <p className="text-xs text-gray-400 mt-1">In positions</p>
+                        </div>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total PnL</CardTitle>
-                            {account.totalPnl >= 0 ? (
-                                <TrendingUp className="h-4 w-4 text-green-600" />
-                            ) : (
-                                <TrendingDown className="h-4 w-4 text-red-600" />
-                            )}
-                        </CardHeader>
-                        <CardContent>
-                            <div className={`text-2xl font-bold ${account.totalPnl >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6 hover:scale-105 transition-transform duration-300">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-gray-300">Total PnL</span>
+                                {account.totalPnl >= 0 ? (
+                                    <TrendingUp className="w-4 h-4 text-emerald-400" />
+                                ) : (
+                                    <TrendingDown className="w-4 h-4 text-red-400" />
+                                )}
+                            </div>
+                            <div className={`text-2xl font-bold ${account.totalPnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                                 ${account.totalPnl.toFixed(2)}
                             </div>
-                            <p className={`text-xs ${account.totalPnlPercent >= 0 ? "text-green-600" : "text-red-600"}`}>
-                                {account.totalPnlPercent >= 0 ? "+" : ""}
-                                {account.totalPnlPercent.toFixed(2)}%
+                            <p className={`text-xs mt-1 ${account.totalPnlPercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                {account.totalPnlPercent >= 0 ? "+" : ""}{account.totalPnlPercent.toFixed(2)}%
                             </p>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
+                )}
+
+                {/* Tabs */}
+                <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-2 mb-6">
+                    <div className="flex space-x-2">
+                        <button
+                            onClick={() => setActiveTab("dashboard")}
+                            className={`flex-1 px-4 py-2 rounded-xl font-medium transition-all duration-200 ${
+                                activeTab === "dashboard"
+                                    ? "bg-purple-600 text-white"
+                                    : "text-gray-300 hover:bg-white/10"
+                            }`}
+                        >
+                            Dashboard
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("config")}
+                            className={`flex-1 px-4 py-2 rounded-xl font-medium transition-all duration-200 ${
+                                activeTab === "config"
+                                    ? "bg-purple-600 text-white"
+                                    : "text-gray-300 hover:bg-white/10"
+                            }`}
+                        >
+                            Position Config
+                        </button>
+                    </div>
                 </div>
-            )}
 
-            <Tabs defaultValue="dashboard" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-                    <TabsTrigger value="config">Position Config</TabsTrigger>
-                </TabsList>
+                {/* Dashboard Tab */}
+                {activeTab === "dashboard" && (
+                    <div className="space-y-6">
+                        {/* Trade Executions */}
+                        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
+                            <h2 className="text-xl font-bold text-white mb-2">Recent Trade Executions</h2>
+                            <p className="text-sm text-gray-400 mb-6">Latest automated trade executions from signals</p>
 
-                <TabsContent value="dashboard" className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Recent Trade Executions</CardTitle>
-                            <CardDescription>Latest automated trade executions from signals</CardDescription>
-                        </CardHeader>
-                        <CardContent>
                             <div className="space-y-4">
                                 {executions.map((execution) => (
-                                    <div key={execution.id} className="border rounded-lg p-4 space-y-3">
-                                        <div className="flex items-center justify-between">
+                                    <div key={execution.id} className="backdrop-blur-xl bg-gradient-to-r from-emerald-500/10 to-green-500/5 border border-emerald-500/30 rounded-2xl p-6">
+                                        <div className="flex items-center justify-between mb-4">
                                             <div className="flex items-center space-x-3">
-                                                <Badge variant={execution.setupType === "LONG" ? "default" : "secondary"}>
+                                                <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                                                    execution.setupType === "LONG"
+                                                        ? "bg-emerald-500/20 text-emerald-400"
+                                                        : "bg-red-500/20 text-red-400"
+                                                }`}>
                                                     {execution.setupType}
-                                                </Badge>
-                                                <span className="font-semibold">{execution.symbol}</span>
-                                                <Badge variant="outline">{execution.leverage}x</Badge>
+                                                </span>
+                                                <span className="font-semibold text-white text-lg">{execution.symbol}</span>
+                                                <span className="px-2 py-1 bg-white/10 rounded-lg text-xs text-gray-300">
+                                                    {execution.leverage}x
+                                                </span>
                                             </div>
-                                            <div className="text-sm text-muted-foreground">
+                                            <div className="text-sm text-gray-400">
                                                 {new Date(execution.timestamp).toLocaleString()}
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                            <div>
-                                                <p className="text-muted-foreground">Quantity</p>
-                                                <p className="font-medium">{execution.quantity}</p>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                                            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+                                                <p className="text-xs text-gray-400 mb-1">Quantity</p>
+                                                <p className="font-medium text-white">{execution.quantity}</p>
                                             </div>
-                                            <div>
-                                                <p className="text-muted-foreground">Avg Price</p>
-                                                <p className="font-medium">${execution.avgPrice.toFixed(2)}</p>
+                                            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+                                                <p className="text-xs text-gray-400 mb-1">Avg Price</p>
+                                                <p className="font-medium text-white">${execution.avgPrice.toFixed(2)}</p>
                                             </div>
-                                            <div>
-                                                <p className="text-muted-foreground">Stop Loss</p>
-                                                <p className="font-medium text-red-600">${execution.stopLoss.toFixed(2)}</p>
+                                            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+                                                <p className="text-xs text-gray-400 mb-1">Stop Loss</p>
+                                                <p className="font-medium text-red-400">${execution.stopLoss.toFixed(2)}</p>
                                             </div>
-                                            <div>
-                                                <p className="text-muted-foreground">Status</p>
-                                                <Badge variant={execution.status === "FILLED" ? "default" : "secondary"}>
+                                            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+                                                <p className="text-xs text-gray-400 mb-1">Status</p>
+                                                <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded text-xs font-medium">
                                                     {execution.status}
-                                                </Badge>
+                                                </span>
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <p className="text-sm text-muted-foreground mb-2">Take Profit Targets</p>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                                            <p className="text-sm text-gray-400 mb-3">Take Profit Targets</p>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                                 {execution.tp1 && (
                                                     <div className="text-sm">
-                                                        <span className="text-muted-foreground">TP1:</span>
-                                                        <span className="ml-1 text-green-600">${execution.tp1.toFixed(2)}</span>
+                                                        <span className="text-gray-400">TP1:</span>
+                                                        <span className="ml-2 text-emerald-400 font-medium">${execution.tp1.toFixed(2)}</span>
                                                     </div>
                                                 )}
                                                 {execution.tp2 && (
                                                     <div className="text-sm">
-                                                        <span className="text-muted-foreground">TP2:</span>
-                                                        <span className="ml-1 text-green-600">${execution.tp2.toFixed(2)}</span>
+                                                        <span className="text-gray-400">TP2:</span>
+                                                        <span className="ml-2 text-emerald-400 font-medium">${execution.tp2.toFixed(2)}</span>
                                                     </div>
                                                 )}
                                                 {execution.tp3 && (
                                                     <div className="text-sm">
-                                                        <span className="text-muted-foreground">TP3:</span>
-                                                        <span className="ml-1 text-green-600">${execution.tp3.toFixed(2)}</span>
+                                                        <span className="text-gray-400">TP3:</span>
+                                                        <span className="ml-2 text-emerald-400 font-medium">${execution.tp3.toFixed(2)}</span>
                                                     </div>
                                                 )}
                                                 {execution.tp4 && (
                                                     <div className="text-sm">
-                                                        <span className="text-muted-foreground">TP4:</span>
-                                                        <span className="ml-1 text-green-600">${execution.tp4.toFixed(2)}</span>
+                                                        <span className="text-gray-400">TP4:</span>
+                                                        <span className="ml-2 text-emerald-400 font-medium">${execution.tp4.toFixed(2)}</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -262,105 +318,110 @@ export default function TradingDashboard() {
                                     </div>
                                 ))}
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Active Positions</CardTitle>
-                            <CardDescription>Current open positions and their performance</CardDescription>
-                        </CardHeader>
-                        <CardContent>
+                        {/* Active Positions */}
+                        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
+                            <h2 className="text-xl font-bold text-white mb-2">Active Positions</h2>
+                            <p className="text-sm text-gray-400 mb-6">Current open positions and their performance</p>
+
                             <div className="space-y-4">
                                 {positions.map((position, index) => (
-                                    <div key={index} className="border rounded-lg p-4">
-                                        <div className="flex items-center justify-between mb-3">
+                                    <div key={index} className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
+                                        <div className="flex items-center justify-between mb-4">
                                             <div className="flex items-center space-x-3">
-                                                <Badge variant={position.side === "LONG" ? "default" : "secondary"}>{position.side}</Badge>
-                                                <span className="font-semibold">{position.symbol}</span>
-                                                <Badge variant="outline">{position.leverage}x</Badge>
+                                                <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
+                                                    position.side === "LONG"
+                                                        ? "bg-emerald-500/20 text-emerald-400"
+                                                        : "bg-red-500/20 text-red-400"
+                                                }`}>
+                                                    {position.side}
+                                                </span>
+                                                <span className="font-semibold text-white text-lg">{position.symbol}</span>
+                                                <span className="px-2 py-1 bg-white/10 rounded-lg text-xs text-gray-300">
+                                                    {position.leverage}x
+                                                </span>
                                             </div>
-                                            <div className={`text-lg font-bold ${position.pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
-                                                ${position.pnl.toFixed(2)} ({position.pnlPercent >= 0 ? "+" : ""}
-                                                {position.pnlPercent.toFixed(2)}%)
+                                            <div className={`text-lg font-bold ${position.pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                                ${position.pnl.toFixed(2)} ({position.pnlPercent >= 0 ? "+" : ""}{position.pnlPercent.toFixed(2)}%)
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                                            <div>
-                                                <p className="text-muted-foreground">Size</p>
-                                                <p className="font-medium">{position.size}</p>
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+                                                <p className="text-xs text-gray-400 mb-1">Size</p>
+                                                <p className="font-medium text-white">{position.size}</p>
                                             </div>
-                                            <div>
-                                                <p className="text-muted-foreground">Entry Price</p>
-                                                <p className="font-medium">${position.entryPrice.toFixed(2)}</p>
+                                            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+                                                <p className="text-xs text-gray-400 mb-1">Entry Price</p>
+                                                <p className="font-medium text-white">${position.entryPrice.toFixed(2)}</p>
                                             </div>
-                                            <div>
-                                                <p className="text-muted-foreground">Mark Price</p>
-                                                <p className="font-medium">${position.markPrice.toFixed(2)}</p>
+                                            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+                                                <p className="text-xs text-gray-400 mb-1">Mark Price</p>
+                                                <p className="font-medium text-white">${position.markPrice.toFixed(2)}</p>
                                             </div>
-                                            <div>
-                                                <p className="text-muted-foreground">Margin</p>
-                                                <p className="font-medium">${position.margin.toFixed(2)}</p>
+                                            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+                                                <p className="text-xs text-gray-400 mb-1">Margin</p>
+                                                <p className="font-medium text-white">${position.margin.toFixed(2)}</p>
                                             </div>
-                                            <div>
-                                                <p className="text-muted-foreground">Leverage</p>
-                                                <p className="font-medium">{position.leverage}x</p>
+                                            <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+                                                <p className="text-xs text-gray-400 mb-1">Leverage</p>
+                                                <p className="font-medium text-white">{position.leverage}x</p>
                                             </div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                        </div>
+                    </div>
+                )}
 
-                <TabsContent value="config" className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Settings className="h-5 w-5" />
-                                Position Configuration
-                            </CardTitle>
-                            <CardDescription>
-                                Configure your trading parameters for automated position sizing and risk management
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="space-y-3">
-                                <Label htmlFor="position-size" className="text-base font-medium">
-                                    Default Position Size (USDT)
-                                </Label>
-                                <div className="flex items-center space-x-4">
-                                    <Input
-                                        id="position-size"
-                                        type="number"
-                                        value={positionSize}
-                                        onChange={(e) => setPositionSize(Number(e.target.value))}
-                                        className="w-32"
-                                        min="10"
-                                        max="10000"
-                                        step="10"
-                                    />
-                                    <span className="text-sm text-muted-foreground">Amount to risk per trade</span>
+                {/* Config Tab */}
+                {activeTab === "config" && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Default Configuration */}
+                        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
+                            <div className="flex items-center space-x-3 mb-6">
+                                <Settings className="w-6 h-6 text-purple-400" />
+                                <div>
+                                    <h2 className="text-xl font-bold text-white">Default Configuration</h2>
+                                    <p className="text-sm text-gray-400">Configure default trading parameters</p>
                                 </div>
-                                <p className="text-sm text-muted-foreground">
-                                    This is the base amount that will be used for each trade before leverage is applied.
-                                </p>
                             </div>
 
-                            <div className="space-y-4">
-                                <Label className="text-base font-medium">Maximum Leverage: {maxLeverage[0]}x</Label>
-                                <div className="px-2">
-                                    <Slider
+                            <div className="space-y-6">
+                                <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+                                    <label className="block text-base font-medium text-white mb-3">
+                                        Default Position Size (USDT)
+                                    </label>
+                                    <div className="flex items-center space-x-4 mb-2">
+                                        <input
+                                            type="number"
+                                            value={positionSize}
+                                            onChange={(e) => setPositionSize(Number(e.target.value))}
+                                            className="w-32 px-4 py-2 bg-slate-800 rounded-xl border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            min="10"
+                                            max="10000"
+                                            step="10"
+                                        />
+                                        <span className="text-sm text-gray-400">Amount to risk per trade</span>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+                                    <label className="block text-base font-medium text-white mb-4">
+                                        Maximum Leverage: {maxLeverage}x
+                                    </label>
+                                    <input
+                                        type="range"
                                         value={maxLeverage}
-                                        onValueChange={setMaxLeverage}
-                                        max={125}
-                                        min={1}
-                                        step={1}
-                                        className="w-full"
+                                        onChange={(e) => setMaxLeverage(Number(e.target.value))}
+                                        min="1"
+                                        max="125"
+                                        step="1"
+                                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
                                     />
-                                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                                    <div className="flex justify-between text-xs text-gray-400 mt-2">
                                         <span>1x</span>
                                         <span>25x</span>
                                         <span>50x</span>
@@ -369,43 +430,196 @@ export default function TradingDashboard() {
                                         <span>125x</span>
                                     </div>
                                 </div>
-                                <p className="text-sm text-muted-foreground">
-                                    Maximum leverage allowed for any trade. The system will not exceed this limit regardless of signal
-                                    recommendations.
-                                </p>
-                            </div>
 
-                            <div className="border rounded-lg p-4 bg-muted/50">
-                                <h4 className="font-medium mb-2">Risk Summary</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span className="text-muted-foreground">Position Size:</span>
-                                        <span className="ml-2 font-medium">${positionSize.toLocaleString()}</span>
+                                <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl p-6">
+                                    <h4 className="font-medium text-white mb-4">Risk Summary</h4>
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Position Size:</span>
+                                            <span className="font-medium text-white">${positionSize.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Max Leverage:</span>
+                                            <span className="font-medium text-white">{maxLeverage}x</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Max Position Value:</span>
+                                            <span className="font-medium text-white">${(positionSize * maxLeverage).toLocaleString()}</span>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <span className="text-muted-foreground">Max Leverage:</span>
-                                        <span className="ml-2 font-medium">{maxLeverage[0]}x</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">Max Position Value:</span>
-                                        <span className="ml-2 font-medium">${(positionSize * maxLeverage[0]).toLocaleString()}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">Required Margin:</span>
-                                        <span className="ml-2 font-medium">${positionSize.toLocaleString()}</span>
-                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={savePositionConfig}
+                                    className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-xl text-white font-medium transition-all duration-200"
+                                >
+                                    Save Configuration
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Manual Trading */}
+                        <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl p-6">
+                            <div className="flex items-center space-x-3 mb-6">
+                                <Play className="w-6 h-6 text-blue-400" />
+                                <div>
+                                    <h2 className="text-xl font-bold text-white">Manual Trading</h2>
+                                    <p className="text-sm text-gray-400">Execute trades with custom parameters</p>
                                 </div>
                             </div>
 
-                            <div className="flex justify-end">
-                                <Button onClick={savePositionConfig} className="w-full md:w-auto">
-                                    Save Configuration
-                                </Button>
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-300">Symbol</label>
+                                        <select
+                                            value={manualTrade.symbol}
+                                            onChange={(e) => setManualTrade({ ...manualTrade, symbol: e.target.value })}
+                                            className="w-full px-4 py-2 bg-slate-800 rounded-xl border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        >
+                                            <option value="BTCUSDT">BTCUSDT</option>
+                                            <option value="ETHUSDT">ETHUSDT</option>
+                                            <option value="ADAUSDT">ADAUSDT</option>
+                                            <option value="SOLUSDT">SOLUSDT</option>
+                                            <option value="DOTUSDT">DOTUSDT</option>
+                                            <option value="LINKUSDT">LINKUSDT</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-300">Side</label>
+                                        <select
+                                            value={manualTrade.side}
+                                            onChange={(e) => setManualTrade({ ...manualTrade, side: e.target.value as "LONG" | "SHORT" })}
+                                            className="w-full px-4 py-2 bg-slate-800 rounded-xl border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        >
+                                            <option value="LONG">LONG</option>
+                                            <option value="SHORT">SHORT</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-300">Position Size (USDT)</label>
+                                        <input
+                                            type="number"
+                                            value={manualTrade.positionSize}
+                                            onChange={(e) => setManualTrade({ ...manualTrade, positionSize: Number(e.target.value) })}
+                                            className="w-full px-4 py-2 bg-slate-800 rounded-xl border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            min="10"
+                                            max="10000"
+                                            step="10"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-300">Leverage</label>
+                                        <input
+                                            type="number"
+                                            value={manualTrade.leverage}
+                                            onChange={(e) => setManualTrade({ ...manualTrade, leverage: Number(e.target.value) })}
+                                            className="w-full px-4 py-2 bg-slate-800 rounded-xl border border-slate-600 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            min="1"
+                                            max="125"
+                                            step="1"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-300">Stop Loss Price</label>
+                                    <input
+                                        type="number"
+                                        placeholder="Enter stop loss price"
+                                        value={manualTrade.stopLoss}
+                                        onChange={(e) => setManualTrade({ ...manualTrade, stopLoss: e.target.value })}
+                                        className="w-full px-4 py-2 bg-slate-800 rounded-xl border border-slate-600 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        step="0.01"
+                                    />
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div className="flex items-center space-x-2">
+                                        <Target className="w-4 h-4 text-blue-400" />
+                                        <label className="text-sm font-medium text-gray-300">Take Profit Levels</label>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-gray-400">TP1</label>
+                                            <input
+                                                type="number"
+                                                placeholder="Take profit 1"
+                                                value={manualTrade.takeProfit1}
+                                                onChange={(e) => setManualTrade({ ...manualTrade, takeProfit1: e.target.value })}
+                                                className="w-full px-3 py-2 bg-slate-800 rounded-xl border border-slate-600 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                step="0.01"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-gray-400">TP2</label>
+                                            <input
+                                                type="number"
+                                                placeholder="Take profit 2"
+                                                value={manualTrade.takeProfit2}
+                                                onChange={(e) => setManualTrade({ ...manualTrade, takeProfit2: e.target.value })}
+                                                className="w-full px-3 py-2 bg-slate-800 rounded-xl border border-slate-600 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                step="0.01"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-gray-400">TP3</label>
+                                            <input
+                                                type="number"
+                                                placeholder="Take profit 3"
+                                                value={manualTrade.takeProfit3}
+                                                onChange={(e) => setManualTrade({ ...manualTrade, takeProfit3: e.target.value })}
+                                                className="w-full px-3 py-2 bg-slate-800 rounded-xl border border-slate-600 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                step="0.01"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-gray-400">TP4</label>
+                                            <input
+                                                type="number"
+                                                placeholder="Take profit 4"
+                                                value={manualTrade.takeProfit4}
+                                                onChange={(e) => setManualTrade({ ...manualTrade, takeProfit4: e.target.value })}
+                                                className="w-full px-3 py-2 bg-slate-800 rounded-xl border border-slate-600 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                step="0.01"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-xl p-4">
+                                    <h4 className="font-medium text-white mb-3 text-sm">Trade Summary</h4>
+                                    <div className="grid grid-cols-2 gap-3 text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Position Value:</span>
+                                            <span className="font-medium text-white">
+                                                ${(manualTrade.positionSize * manualTrade.leverage).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Required Margin:</span>
+                                            <span className="font-medium text-white">${manualTrade.positionSize.toLocaleString()}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={executeManualTrade}
+                                    className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 rounded-xl text-white font-medium transition-all duration-200 flex items-center justify-center space-x-2"
+                                >
+                                    <Play className="w-4 h-4" />
+                                    <span>Execute Trade</span>
+                                </button>
                             </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }
