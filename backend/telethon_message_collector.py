@@ -34,10 +34,13 @@ def get_db_config():
         'command_timeout': 30  # safe for Neon
     }
 
+async def get_connection():
+    db_config = get_db_config()
+    return await asyncpg.connect(**db_config)
+
 # ----------------------------
 # Globals
 # ----------------------------
-db_pool = None
 signal_buffer = []
 market_buffer = []
 buffer_lock = asyncio.Lock()
@@ -45,6 +48,9 @@ BATCH_SIZE = 30
 FLUSH_INTERVAL = 20
 connected_clients = set()
 
+# ----------------------------
+# Utility
+# ----------------------------
 def to_decimal_safe(value):
     """Convert cleaned string to Decimal(18,8) or None"""
     if not value or str(value).lower() == "none":
@@ -160,7 +166,7 @@ def extract_value(label, lines):
             if len(parts) > 1:
                 value = parts[1].strip().replace("•", "").strip()
                 if "stop loss" in label.lower() or "sl" in label.lower():
-                    value = value.split('☠️')[0].strip()
+                    value = value.split('☠')[0].strip()
                 return value
     return None
 
@@ -177,9 +183,9 @@ async def run_telegram_client():
             date = event.message.date
             if date.tzinfo is not None:
                 date = date.replace(tzinfo=None)
-
             lines = [line.strip() for line in text.splitlines() if line.strip()]
 
+            # Detect if it's a signal message
             is_signal = (
                 any(line.startswith('#') for line in lines) and
                 any('entry' in line.lower() for line in lines) and
@@ -187,13 +193,17 @@ async def run_telegram_client():
                 any('loss' in line.lower() for line in lines)
             )
 
+            channel_name = event.chat.title or str(event.chat_id)
+
             async with buffer_lock:
                 if is_signal:
                     first_line = lines[0] if lines else ""
                     pair = first_line.split()[0].strip('#') if first_line else "UNKNOWN"
-                    setup_type = ("LONG" if "LONG" in first_line.upper()
-                                  else "SHORT" if "SHORT" in first_line.upper()
-                                  else "UNKNOWN")
+                    setup_type = (
+                        "LONG" if "LONG" in first_line.upper()
+                        else "SHORT" if "SHORT" in first_line.upper()
+                        else "UNKNOWN"
+                    )
 
                     entry = extract_value("Entry", lines)
                     leverage = extract_value("Leverage", lines)
@@ -204,15 +214,21 @@ async def run_telegram_client():
                     stop_loss = extract_value("Stop Loss", lines) or extract_value("SL", lines)
 
                     signal_buffer.append((
-                        pair, setup_type,
+                        pair,
+                        setup_type,
                         to_decimal_safe(entry),
                         int(to_decimal_safe(leverage.replace('x',''))) if leverage and leverage != "None" else None,
-                        to_decimal_safe(tp1), to_decimal_safe(tp2),
-                        to_decimal_safe(tp3), to_decimal_safe(tp4),
-                        to_decimal_safe(stop_loss), date, text
+                        to_decimal_safe(tp1),
+                        to_decimal_safe(tp2),
+                        to_decimal_safe(tp3),
+                        to_decimal_safe(tp4),
+                        to_decimal_safe(stop_loss),
+                        date,
+                        text,
+                        channel_name
                     ))
 
-                    print(f"✅ Signal detected: {pair} {setup_type}")
+                    print(f"✅ Signal detected: {pair} {setup_type} from {channel_name}")
                 else:
                     sender = getattr(event.message.sender, "first_name", None) \
                              or getattr(event.message.sender, "title", None) \
@@ -237,7 +253,6 @@ async def run_telegram_client():
 # Main
 # ----------------------------
 async def main():
-    global db_pool
     try:
         if not DB_URL:
             print("❌ DATABASE_URL environment variable is required")
@@ -258,8 +273,6 @@ async def main():
     except Exception as e:
         print(f"💥 Fatal error: {e}")
     finally:
-        if db_pool:
-            await db_pool.close()
         print("🛑 Shutdown complete")
 
 if __name__ == "__main__":
