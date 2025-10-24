@@ -234,12 +234,17 @@ async def run_telegram_client():
                     ))
 
                     print(f"✅ Signal detected: {pair} {setup_type} from {channel_name}")
-                else:
-                    sender = getattr(event.message.sender, "first_name", None) \
-                             or getattr(event.message.sender, "title", None) \
-                             or str(event.message.sender_id)
-                    market_buffer.append((sender, text, date))
-                    print(f"📊 Market message from {sender}: {text[:100]}...")
+                 else:
+        sender_obj = event.message.sender
+        if sender_obj:
+            sender = getattr(sender_obj, "first_name", None) \
+                     or getattr(sender_obj, "title", None) \
+                     or str(event.message.sender_id)
+        else:
+            sender = str(event.message.chat.title if event.message.chat else event.message.sender_id)
+
+        market_buffer.append((sender, text, date))
+        print(f"📊 Market message from {sender}: {text[:100]}...")
 
                 # Flush immediately if batch size reached
                 if len(signal_buffer) >= BATCH_SIZE or len(market_buffer) >= BATCH_SIZE:
