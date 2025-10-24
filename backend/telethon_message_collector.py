@@ -44,7 +44,7 @@ async def get_connection():
 # ----------------------------
 signal_buffer = []
 market_buffer = []
-buffer_lock = asyncio.Lock()  # ✅ protect buffers
+buffer_lock = asyncio.Lock()
 BATCH_SIZE = 10
 FLUSH_INTERVAL = 5
 connected_clients = set()
@@ -54,7 +54,6 @@ connected_clients = set()
 # Utility
 # ----------------------------
 def to_decimal_safe(value):
-    """Convert cleaned string to Decimal(18,8) or None"""
     if not value or str(value).lower() == "none":
         return None
     try:
@@ -87,7 +86,7 @@ async def create_tables():
                 stop_loss DECIMAL(18,8),
                 timestamp TIMESTAMP,
                 full_message TEXT UNIQUE,
-                channel VARCHAR(100)
+                channel VARCHAR(200)
             );
         """
         )
@@ -95,7 +94,7 @@ async def create_tables():
             """
             CREATE TABLE IF NOT EXISTS market_messages (
                 id SERIAL PRIMARY KEY,
-                sender VARCHAR(100),
+                sender VARCHAR(200),
                 text TEXT UNIQUE,
                 timestamp TIMESTAMP
             );
@@ -224,7 +223,15 @@ async def run_telegram_client():
                 and any("loss" in line.lower() for line in lines)
             )
 
-            channel_name = event.chat.title or str(event.chat_id)
+            # ----------------------------
+            # Safe channel/group identification
+            # ----------------------------
+            channel_name = getattr(event.chat, "title", None)
+            if not channel_name:
+                sender_obj = event.message.sender
+                channel_name = getattr(sender_obj, "username", None)
+            if not channel_name:
+                channel_name = str(event.message.sender_id)
 
             async with buffer_lock:
                 if is_signal:
@@ -269,18 +276,13 @@ async def run_telegram_client():
 
                 else:
                     sender_obj = event.message.sender
-                    if sender_obj:
-                        sender = (
-                            getattr(sender_obj, "first_name", None)
-                            or getattr(sender_obj, "title", None)
-                            or str(event.message.sender_id)
-                        )
-                    else:
-                        sender = str(
-                            event.message.chat.title
-                            if event.message.chat
-                            else event.message.sender_id
-                        )
+                    sender = (
+                        getattr(sender_obj, "first_name", None)
+                        or getattr(sender_obj, "title", None)
+                        or getattr(event.message.chat, "title", None)
+                        or getattr(sender_obj, "username", None)
+                        or str(event.message.sender_id)
+                    )
 
                     market_buffer.append((sender, text, date))
                     print(f"📊 Market message from {sender}: {text[:100]}...")
