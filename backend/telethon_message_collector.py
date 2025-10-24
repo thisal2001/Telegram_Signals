@@ -214,11 +214,16 @@ async def run_telegram_client():
 
                     print(f"✅ Signal detected: {pair} {setup_type}")
                 else:
-                    sender = getattr(event.message.sender, "first_name", None) \
-                             or getattr(event.message.sender, "title", None) \
-                             or str(event.message.sender_id)
-                    market_buffer.append((sender, text, date))
-                    print(f"📊 Market message from {sender}: {text[:100]}...")
+        sender_obj = event.message.sender
+        if sender_obj:
+            sender = getattr(sender_obj, "first_name", None) \
+                     or getattr(sender_obj, "title", None) \
+                     or str(event.message.sender_id)
+        else:
+            sender = str(event.message.chat.title if event.message.chat else event.message.sender_id)
+
+        market_buffer.append((sender, text, date))
+        print(f"📊 Market message from {sender}: {text[:100]}...")
 
             # Broadcast to WebSocket clients
             await broadcast_message(json.dumps({
