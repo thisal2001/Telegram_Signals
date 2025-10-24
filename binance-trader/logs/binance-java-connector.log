@@ -1,0 +1,123 @@
+2025-10-24 21:49:36.840[1761322776840] | INFO  | main       | c.e.b.BinanceTraderApplication       - Starting BinanceTraderApplication using Java 21.0.8 with PID 5920 (C:\Users\Thisal Dilmith\Downloads\tg_message_extractor-main\binance-trader\target\classes started by Thisal Dilmith in C:\Users\Thisal Dilmith\Downloads\tg_message_extractor-main\binance-trader)
+2025-10-24 21:49:36.843[1761322776843] | INFO  | main       | c.e.b.BinanceTraderApplication       - No active profile set, falling back to 1 default profile: "default"
+2025-10-24 21:49:37.701[1761322777701] | INFO  | main       | o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2025-10-24 21:49:37.776[1761322777776] | INFO  | main       | o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 63 ms. Found 1 JPA repository interface.
+2025-10-24 21:49:38.520[1761322778520] | INFO  | main       | o.s.b.w.e.tomcat.TomcatWebServer     - Tomcat initialized with port 8080 (http)
+2025-10-24 21:49:38.537[1761322778537] | INFO  | main       | o.a.coyote.http11.Http11NioProtocol  - Initializing ProtocolHandler ["http-nio-8080"]
+2025-10-24 21:49:38.542[1761322778542] | INFO  | main       | o.a.catalina.core.StandardService    - Starting service [Tomcat]
+2025-10-24 21:49:38.543[1761322778543] | INFO  | main       | o.a.catalina.core.StandardEngine     - Starting Servlet engine: [Apache Tomcat/10.1.44]
+2025-10-24 21:49:38.652[1761322778652] | INFO  | main       | o.a.c.c.C.[Tomcat].[localhost].[/]   - Initializing Spring embedded WebApplicationContext
+2025-10-24 21:49:38.653[1761322778653] | INFO  | main       | o.s.b.w.s.c.ServletWebServerApplicationContext - Root WebApplicationContext: initialization completed in 1742 ms
+2025-10-24 21:49:38.872[1761322778872] | INFO  | main       | o.h.jpa.internal.util.LogHelper      - HHH000204: Processing PersistenceUnitInfo [name: default]
+2025-10-24 21:49:38.970[1761322778970] | INFO  | main       | org.hibernate.Version                - HHH000412: Hibernate ORM core version 6.6.26.Final
+2025-10-24 21:49:39.033[1761322779033] | INFO  | main       | o.h.c.i.RegionFactoryInitiator       - HHH000026: Second-level cache disabled
+2025-10-24 21:49:39.424[1761322779424] | INFO  | main       | o.s.o.j.p.SpringPersistenceUnitInfo  - No LoadTimeWeaver setup: ignoring JPA class transformer
+2025-10-24 21:49:39.474[1761322779474] | INFO  | main       | com.zaxxer.hikari.HikariDataSource   - HikariPool-1 - Starting...
+2025-10-24 21:49:43.639[1761322783639] | INFO  | main       | com.zaxxer.hikari.pool.HikariPool    - HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@6a2badb1
+2025-10-24 21:49:43.641[1761322783641] | INFO  | main       | com.zaxxer.hikari.HikariDataSource   - HikariPool-1 - Start completed.
+2025-10-24 21:49:44.575[1761322784575] | WARN  | main       | org.hibernate.orm.deprecation        - HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2025-10-24 21:49:45.809[1761322785809] | INFO  | main       | o.hibernate.orm.connections.pooling  - HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 17.5
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2025-10-24 21:49:46.850[1761322786850] | INFO  | main       | o.h.e.t.j.p.i.JtaPlatformInitiator   - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2025-10-24 21:49:49.007[1761322789007] | INFO  | main       | o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2025-10-24 21:49:49.429[1761322789429] | WARN  | main       | o.s.b.a.o.j.JpaBaseConfiguration$JpaWebConfiguration - spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2025-10-24 21:49:49.806[1761322789806] | INFO  | main       | o.a.coyote.http11.Http11NioProtocol  - Starting ProtocolHandler ["http-nio-8080"]
+2025-10-24 21:49:49.829[1761322789829] | INFO  | main       | o.s.b.w.e.tomcat.TomcatWebServer     - Tomcat started on port 8080 (http) with context path '/'
+2025-10-24 21:49:49.843[1761322789843] | INFO  | main       | c.e.b.BinanceTraderApplication       - Started BinanceTraderApplication in 13.517 seconds (process running for 14.314)
+2025-10-24 21:49:50.785[1761322790785] | INFO  | scheduling-1 | c.e.b.Service.TradeExecutor          - Executing signal: LONG SOLUSDT.P at null
+2025-10-24 21:49:50.791[1761322790791] | INFO  | scheduling-1 | c.b.c.f.client.utils.RequestHandler  - GET https://fapi.binance.com/fapi/v2/balance?recvWindow=60000&timestamp=1761322790786&signature=c7231c0d6252b055be5a56dbbe9751fdf2100ce92e53508999f89412c9bfb1cc
+2025-10-24 21:49:52.017[1761322792017] | ERROR | scheduling-1 | c.e.b.Service.BinanceService         - Error fetching balance: 
+com.binance.connector.futures.client.exceptions.BinanceClientException: {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action"}
+	at com.binance.connector.futures.client.utils.ResponseHandler.handleErrorResponse(ResponseHandler.java:71)
+	at com.binance.connector.futures.client.utils.ResponseHandler.handleResponse(ResponseHandler.java:35)
+	at com.binance.connector.futures.client.utils.RequestHandler.sendApiRequest(RequestHandler.java:56)
+	at com.binance.connector.futures.client.utils.RequestHandler.sendSignedRequest(RequestHandler.java:80)
+	at com.binance.connector.futures.client.impl.um_futures.UMAccount.futuresAccountBalance(UMAccount.java:121)
+	at com.example.binance_trader.Service.BinanceService.getBalance(BinanceService.java:26)
+	at com.example.binance_trader.Service.BinanceService.placeFuturesOrder(BinanceService.java:45)
+	at com.example.binance_trader.Service.TradeExecutor.executeLatestSignal(TradeExecutor.java:37)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.scheduling.support.ScheduledMethodRunnable.runInternal(ScheduledMethodRunnable.java:130)
+	at org.springframework.scheduling.support.ScheduledMethodRunnable.lambda$run$2(ScheduledMethodRunnable.java:124)
+	at io.micrometer.observation.Observation.observe(Observation.java:498)
+	at org.springframework.scheduling.support.ScheduledMethodRunnable.run(ScheduledMethodRunnable.java:124)
+	at org.springframework.scheduling.config.Task$OutcomeTrackingRunnable.run(Task.java:85)
+	at org.springframework.scheduling.support.DelegatingErrorHandlingRunnable.run(DelegatingErrorHandlingRunnable.java:54)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:572)
+	at java.base/java.util.concurrent.FutureTask.runAndReset(FutureTask.java:358)
+	at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:305)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+2025-10-24 21:49:52.021[1761322792021] | ERROR | scheduling-1 | c.e.b.Service.BinanceService         - Not enough balance to trade. USDT=0.0
+2025-10-24 21:52:24.956[1761322944956] | INFO  | SpringApplicationShutdownHook | o.s.b.w.e.tomcat.GracefulShutdown    - Commencing graceful shutdown. Waiting for active requests to complete
+2025-10-24 21:52:24.962[1761322944962] | INFO  | tomcat-shutdown | o.s.b.w.e.tomcat.GracefulShutdown    - Graceful shutdown complete
+2025-10-24 21:52:24.967[1761322944967] | INFO  | SpringApplicationShutdownHook | o.s.o.j.LocalContainerEntityManagerFactoryBean - Closing JPA EntityManagerFactory for persistence unit 'default'
+2025-10-24 21:52:24.970[1761322944970] | INFO  | SpringApplicationShutdownHook | com.zaxxer.hikari.HikariDataSource   - HikariPool-1 - Shutdown initiated...
+2025-10-24 21:52:29.267[1761322949267] | INFO  | SpringApplicationShutdownHook | com.zaxxer.hikari.HikariDataSource   - HikariPool-1 - Shutdown completed.
+2025-10-24 21:57:44.918[1761323264918] | INFO  | main       | c.e.b.BinanceTraderApplication       - Starting BinanceTraderApplication using Java 21.0.8 with PID 5804 (C:\Users\Thisal Dilmith\Downloads\tg_message_extractor-main\binance-trader\target\classes started by Thisal Dilmith in C:\Users\Thisal Dilmith\Downloads\tg_message_extractor-main\binance-trader)
+2025-10-24 21:57:44.920[1761323264920] | INFO  | main       | c.e.b.BinanceTraderApplication       - No active profile set, falling back to 1 default profile: "default"
+2025-10-24 21:57:45.633[1761323265633] | INFO  | main       | o.s.d.r.c.RepositoryConfigurationDelegate - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2025-10-24 21:57:45.702[1761323265702] | INFO  | main       | o.s.d.r.c.RepositoryConfigurationDelegate - Finished Spring Data repository scanning in 58 ms. Found 1 JPA repository interface.
+2025-10-24 21:57:46.272[1761323266272] | INFO  | main       | o.s.b.w.e.tomcat.TomcatWebServer     - Tomcat initialized with port 8080 (http)
+2025-10-24 21:57:46.287[1761323266287] | INFO  | main       | o.a.coyote.http11.Http11NioProtocol  - Initializing ProtocolHandler ["http-nio-8080"]
+2025-10-24 21:57:46.291[1761323266291] | INFO  | main       | o.a.catalina.core.StandardService    - Starting service [Tomcat]
+2025-10-24 21:57:46.292[1761323266292] | INFO  | main       | o.a.catalina.core.StandardEngine     - Starting Servlet engine: [Apache Tomcat/10.1.44]
+2025-10-24 21:57:46.365[1761323266365] | INFO  | main       | o.a.c.c.C.[Tomcat].[localhost].[/]   - Initializing Spring embedded WebApplicationContext
+2025-10-24 21:57:46.369[1761323266369] | INFO  | main       | o.s.b.w.s.c.ServletWebServerApplicationContext - Root WebApplicationContext: initialization completed in 1389 ms
+2025-10-24 21:57:46.552[1761323266552] | INFO  | main       | o.h.jpa.internal.util.LogHelper      - HHH000204: Processing PersistenceUnitInfo [name: default]
+2025-10-24 21:57:46.610[1761323266610] | INFO  | main       | org.hibernate.Version                - HHH000412: Hibernate ORM core version 6.6.26.Final
+2025-10-24 21:57:46.646[1761323266646] | INFO  | main       | o.h.c.i.RegionFactoryInitiator       - HHH000026: Second-level cache disabled
+2025-10-24 21:57:46.969[1761323266969] | INFO  | main       | o.s.o.j.p.SpringPersistenceUnitInfo  - No LoadTimeWeaver setup: ignoring JPA class transformer
+2025-10-24 21:57:47.013[1761323267013] | INFO  | main       | com.zaxxer.hikari.HikariDataSource   - HikariPool-1 - Starting...
+2025-10-24 21:57:50.815[1761323270815] | INFO  | main       | com.zaxxer.hikari.pool.HikariPool    - HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@1acc873b
+2025-10-24 21:57:50.817[1761323270817] | INFO  | main       | com.zaxxer.hikari.HikariDataSource   - HikariPool-1 - Start completed.
+2025-10-24 21:57:51.242[1761323271242] | WARN  | main       | org.hibernate.orm.deprecation        - HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2025-10-24 21:57:52.382[1761323272382] | INFO  | main       | o.hibernate.orm.connections.pooling  - HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 17.5
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2025-10-24 21:57:53.210[1761323273210] | INFO  | main       | o.h.e.t.j.p.i.JtaPlatformInitiator   - HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2025-10-24 21:57:55.135[1761323275135] | INFO  | main       | o.s.o.j.LocalContainerEntityManagerFactoryBean - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2025-10-24 21:57:55.490[1761323275490] | WARN  | main       | o.s.b.a.o.j.JpaBaseConfiguration$JpaWebConfiguration - spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2025-10-24 21:57:55.880[1761323275880] | INFO  | main       | o.a.coyote.http11.Http11NioProtocol  - Starting ProtocolHandler ["http-nio-8080"]
+2025-10-24 21:57:55.901[1761323275901] | INFO  | main       | o.s.b.w.e.tomcat.TomcatWebServer     - Tomcat started on port 8080 (http) with context path '/'
+2025-10-24 21:57:55.914[1761323275914] | INFO  | main       | c.e.b.BinanceTraderApplication       - Started BinanceTraderApplication in 11.487 seconds (process running for 12.16)
+2025-10-24 21:57:56.877[1761323276877] | INFO  | scheduling-1 | c.e.b.Service.TradeExecutor          - Executing signal: LONG SOLUSDT.P at null
+2025-10-24 21:57:56.883[1761323276883] | INFO  | scheduling-1 | c.b.c.f.client.utils.RequestHandler  - GET https://fapi.binance.com/fapi/v2/balance?recvWindow=60000&timestamp=1761323276880&signature=b2251735259d34ed22537e9c274b7b996db437d678c0061e2ec776f15c31ddd5
+2025-10-24 21:57:57.658[1761323277658] | ERROR | scheduling-1 | c.e.b.Service.BinanceService         - Error fetching balance: 
+com.binance.connector.futures.client.exceptions.BinanceClientException: {"code":-2015,"msg":"Invalid API-key, IP, or permissions for action, request ip: 203.189.186.232"}
+	at com.binance.connector.futures.client.utils.ResponseHandler.handleErrorResponse(ResponseHandler.java:71)
+	at com.binance.connector.futures.client.utils.ResponseHandler.handleResponse(ResponseHandler.java:35)
+	at com.binance.connector.futures.client.utils.RequestHandler.sendApiRequest(RequestHandler.java:56)
+	at com.binance.connector.futures.client.utils.RequestHandler.sendSignedRequest(RequestHandler.java:80)
+	at com.binance.connector.futures.client.impl.um_futures.UMAccount.futuresAccountBalance(UMAccount.java:121)
+	at com.example.binance_trader.Service.BinanceService.getBalance(BinanceService.java:26)
+	at com.example.binance_trader.Service.BinanceService.placeFuturesOrder(BinanceService.java:45)
+	at com.example.binance_trader.Service.TradeExecutor.executeLatestSignal(TradeExecutor.java:37)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.scheduling.support.ScheduledMethodRunnable.runInternal(ScheduledMethodRunnable.java:130)
+	at org.springframework.scheduling.support.ScheduledMethodRunnable.lambda$run$2(ScheduledMethodRunnable.java:124)
+	at io.micrometer.observation.Observation.observe(Observation.java:498)
+	at org.springframework.scheduling.support.ScheduledMethodRunnable.run(ScheduledMethodRunnable.java:124)
+	at org.springframework.scheduling.config.Task$OutcomeTrackingRunnable.run(Task.java:85)
+	at org.springframework.scheduling.support.DelegatingErrorHandlingRunnable.run(DelegatingErrorHandlingRunnable.java:54)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:572)
+	at java.base/java.util.concurrent.FutureTask.runAndReset(FutureTask.java:358)
+	at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:305)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+2025-10-24 21:57:57.663[1761323277663] | ERROR | scheduling-1 | c.e.b.Service.BinanceService         - Not enough balance to trade. USDT=0.0
