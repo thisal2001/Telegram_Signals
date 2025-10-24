@@ -1,0 +1,7 @@
+com\example\binance_trader\controller\BinanceController.class
+com\example\binance_trader\Service\TradeExecutor.class
+com\example\binance_trader\model\Signal.class
+com\example\binance_trader\BinanceTraderApplication.class
+com\example\binance_trader\config\BinanceConfig.class
+com\example\binance_trader\Service\BinanceService.class
+com\example\binance_trader\repository\SignalRepository.class
